@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import string
 
-img_path = r"C:\Users\Monster\Desktop\workworkworkworkwork\AdvancedPrograming\k.jpg"
+img_path = r"C:\Users\Monster\Desktop\workworkworkworkwork\AdvancedPrograming\Python\a.jpg"
 
 img = cv2.imread(img_path)
 if img is None:
@@ -52,7 +52,7 @@ kimlik_bilgileri = {
     "Adı": "(bulunamadı)",
     "Doğum Tarihi": re.search(r'\d{2}\.\d{2}\.\d{4}', full_text),
     "Cinsiyet": "(bulunamadı)",
-    "Seri No": re.search(r'[A-Z]{1,3}\d{5,}', full_text),
+    "Seri No": re.search(r'\b[A-Z]\d{2}[A-Z]\d{5}\b', full_text),
     "Uyruğu": "(bulunamadı)",
     "Son Geçerlilik": re.findall(r'\d{2}\.\d{2}\.\d{4}', full_text)
 }
