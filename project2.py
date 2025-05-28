@@ -1,92 +1,112 @@
 import cv2
 import pytesseract
+from pytesseract import Output
 import re
+import matplotlib.pyplot as plt
+import numpy as np
+import string
 
-# Tesseract path
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+img_path = r"C:\Users\Monster\Desktop\workworkworkworkwork\AdvancedPrograming\k.jpg"
 
-# Görseli oku
-img = cv2.imread(r"C:\Users\Monster\Desktop\workworkworkworkwork\AdvancedPrograming\css_ile_kimlik_karti_tasarimi.jpeg")
+img = cv2.imread(img_path)
+if img is None:
+    raise FileNotFoundError("Görsel bulunamadı.")
 
-# Ön işleme (griye çevir + threshold)
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-gray = cv2.bilateralFilter(gray, 11, 17, 17)
-_, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+# 2. Filtreleme işlemi (Görüntü iyileştirme)
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # Griye çevir
 
-# OCR çalıştır
-custom_config = r'--oem 3 --psm 6 -l tur'
-text = pytesseract.image_to_string(thresh, config=custom_config)
+# Gürültü azaltma (bilateral filter detayları korur)
+filtered = cv2.bilateralFilter(gray, 11, 17, 17)
 
-# OCR çıktısını yazdır
-print("OCR Çıktısı:\n", text)
+# Adaptif eşikleme
+thresh = cv2.adaptiveThreshold(filtered, 255,
+                               cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                               cv2.THRESH_BINARY, 31, 15)
 
-# Regex ile bilgiler
-tc_kimlik_no = re.search(r'\b\d{11}\b', text)
-dogum_tarihi = re.search(r'\d{2}\.\d{2}\.\d{4}', text)
-seri_no = re.search(r'[A-Z]{1,3}\d{5,}', text)
+# Kenarları belirginleştirme (morfolojik işlem)
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+preprocessed_image = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
-# Alanları başta boş olarak tanımlayalım
+# 3. OCR İşlemi
+myconfig = r'--oem 3 --psm 6 -l tur+eng'
+data = pytesseract.image_to_data(preprocessed_image, config=myconfig, output_type=Output.DICT)
+
+detected_texts = []
+
+# 4. OCR sonucuna göre kutular çiz
+for i in range(len(data['text'])):
+    text = data['text'][i].strip()
+    if float(data['conf'][i]) > 10 and text != "":
+        x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+        cv2.rectangle(preprocessed_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        detected_texts.append(text)
+
+# 5. OCR'dan gelen kelimeleri birleştir
+full_text = ' '.join(detected_texts)
+
+# 6. Kimlik bilgilerini ayıkla
 kimlik_bilgileri = {
-    "TC Kimlik No": tc_kimlik_no.group(0) if tc_kimlik_no else "(bulunamadı)",
+    "TC Kimlik No": re.search(r'\b\d{11}\b', full_text),
     "Soyadı": "(bulunamadı)",
     "Adı": "(bulunamadı)",
-    "Doğum Tarihi": dogum_tarihi.group(0) if dogum_tarihi else "(bulunamadı)",
+    "Doğum Tarihi": re.search(r'\d{2}\.\d{2}\.\d{4}', full_text),
     "Cinsiyet": "(bulunamadı)",
-    "Seri No": seri_no.group(0) if seri_no else "(bulunamadı)",
+    "Seri No": re.search(r'[A-Z]{1,3}\d{5,}', full_text),
     "Uyruğu": "(bulunamadı)",
-    "Son Geçerlilik": "(bulunamadı)"
+    "Son Geçerlilik": re.findall(r'\d{2}\.\d{2}\.\d{4}', full_text)
 }
 
-# OCR çıktısında satır satır arama yap
-lines = text.split('\n')
-for idx, line in enumerate(lines):
-    line_lower = line.lower()
-
-    if "soyadı" in line_lower or "surname" in line_lower:
-        if idx + 1 < len(lines):
-            kimlik_bilgileri["Soyadı"] = lines[idx + 1].strip()
-
-    if "adı" in line_lower or "name" in line_lower:
-        if idx + 1 < len(lines):
-            kimlik_bilgileri["Adı"] = lines[idx + 1].strip()
-
-    if "cinsiyet" in line_lower or "gender" in line_lower:
-        if idx + 1 < len(lines):
-            kimlik_bilgileri["Cinsiyet"] = lines[idx + 1].strip()
-
-    if "uyruğu" in line_lower or "nationality" in line_lower:
-        if idx + 1 < len(lines):
-            kimlik_bilgileri["Uyruğu"] = lines[idx + 1].strip()
-
-    if "son geçerlilik" in line_lower or "valid until" in line_lower:
-        if idx + 1 < len(lines):
-            kimlik_bilgileri["Son Geçerlilik"] = lines[idx + 1].strip()
-
-# Düzenleme fonksiyonları
-
-def temizle_cinsiyet(veri):
-    veri = veri.lower()
-    if "erkek" in veri:
-        return "Erkek"
-    elif "kadın" in veri:
-        return "Kadın"
-    elif "male" in veri:
-        return "Male"
-    elif "female" in veri:
-        return "Female"
+# Regex sonuçlarını düz metne dönüştür
+for key in ["TC Kimlik No", "Doğum Tarihi", "Seri No"]:
+    if isinstance(kimlik_bilgileri[key], re.Match):
+        kimlik_bilgileri[key] = kimlik_bilgileri[key].group(0)
     else:
-        return "(bulunamadı)"
+        kimlik_bilgileri[key] = "(bulunamadı)"
 
-def temizle_uyruk(veri):
-    match = re.search(r'(T\.C\.|TUR|TCTUR|T\.C\. TUR)', veri, re.IGNORECASE)
-    return match.group(0) if match else "(bulunamadı)"
+kimlik_bilgileri["Son Geçerlilik"] = kimlik_bilgileri["Son Geçerlilik"][1] if len(kimlik_bilgileri["Son Geçerlilik"]) > 1 else "(bulunamadı)"
 
-# Verileri düzenle
-kimlik_bilgileri["Cinsiyet"] = temizle_cinsiyet(kimlik_bilgileri["Cinsiyet"])
-kimlik_bilgileri["Uyruğu"] = temizle_uyruk(kimlik_bilgileri["Uyruğu"])
+# 7. Ad ve Soyadı için gelişmiş ayıklama
+def sec_kelime_grubu(detected_texts, etiketler, max_ilerleme=3):
+    for i in range(len(detected_texts)):
+        kelime = detected_texts[i].lower()
+        if any(etiket in kelime for etiket in etiketler):
+            kelime_grubu = []
+            for j in range(1, max_ilerleme + 1):
+                if i + j < len(detected_texts):
+                    sonraki = detected_texts[i + j]
+                    temiz = sonraki.strip(string.punctuation)
+                    if temiz.isalpha() and len(temiz) > 1:
+                        kelime_grubu.append(temiz)
+            if kelime_grubu:
+                return ' '.join(kelime_grubu)
+    return "(bulunamadı)"
 
+kimlik_bilgileri["Soyadı"] = sec_kelime_grubu(detected_texts, ["soyadı", "surname", "sunan"])
+kimlik_bilgileri["Adı"] = sec_kelime_grubu(detected_texts, ["adı", "name", "given"])
 
-# Sonuçları yazdır
+# 8. Cinsiyet kontrolü
+if re.search(r'\bK/?F\b', full_text, re.IGNORECASE):
+    kimlik_bilgileri["Cinsiyet"] = "K/F"
+elif re.search(r'\bE/?M\b', full_text, re.IGNORECASE):
+    kimlik_bilgileri["Cinsiyet"] = "E/M"
+
+# 9. Uyruğu kontrolü
+full_text_lower = full_text.lower()
+if "türk" in full_text_lower or "t.c" in full_text_lower:
+    kimlik_bilgileri["Uyruğu"] = "T.C."
+
+# 10. Sonuçları Yazdır
 print("\n--- Çıktı ---")
 for key, value in kimlik_bilgileri.items():
     print(f"{key}: {value}")
+
+print("\n--- Tanınan Kelimeler ---")
+print(detected_texts)
+
+# 11. Görseli Göster (isteğe bağlı)
+plt.figure(figsize=(10, 10))
+plt.imshow(preprocessed_image, cmap='gray')
+plt.axis('off')
+plt.title("Filtrelenmiş Görüntü (OCR Öncesi)")
+plt.show()
