@@ -147,7 +147,7 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 # Referans yüzü yükle
-reference_image_path = "E:\\opencv_udemy\\face_recognition\\images\\enescan.jpg"
+reference_image_path = "E:\\opencv_udemy\\face_recognition\\images\\eje2.png"
 reference_image = face_recognition.load_image_file(reference_image_path)
 reference_encodings = face_recognition.face_encodings(reference_image)
 if not reference_encodings:
