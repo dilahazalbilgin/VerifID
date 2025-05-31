@@ -1,0 +1,91 @@
+/* Global styles for the entire application */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: Arial, sans-serif;
+  background-color: #000;
+  color: #FFF;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #CAFF33;
+  margin-bottom: 1rem;
+}
+
+p {
+  margin-bottom: 1rem;
+  color: #FFF;
+}
+
+a {
+  color: #CAFF33;
+  text-decoration: none;
+  transition: color 0.3s;
+  position: relative;
+  letter-spacing: 1px;
+}
+
+a:hover {
+  color: #CAFF33;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  background-color: #111;
+  color: #FFF;
+  border: 1px solid #333;
+  border-radius: 4px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #CAFF33;
+  box-shadow: 0 0 0 2px rgba(202, 255, 51, 0.2);
+}
+
+/* Autofill styles */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #000 inset !important;
+  -webkit-text-fill-color: #FFF !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #FFF;
+}
+
+::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #CAFF33;
+}
+

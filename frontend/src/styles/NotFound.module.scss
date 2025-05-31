@@ -1,0 +1,58 @@
+.pageContainer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: 60px;
+  font-family: Arial, sans-serif;
+  background-color: #000;
+  color: #FFF;
+}
+
+.notFoundContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  
+  h1 {
+    font-size: 8rem;
+    color: #CAFF33;
+    margin-bottom: 0;
+    line-height: 1;
+  }
+  
+  h2 {
+    font-size: 2.5rem;
+    color: #CAFF33;
+    margin-bottom: 1.5rem;
+  }
+  
+  p {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 2rem;
+    max-width: 500px;
+  }
+}
+
+.homeButton {
+  display: inline-block;
+  padding: 0.8rem 2rem;
+  background-color: #CAFF33;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  text-decoration: none;
+  
+  &:hover {
+    background-color: darken(#CAFF33, 10%);
+    text-decoration: none;
+  }
+}

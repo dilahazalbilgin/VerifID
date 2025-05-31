@@ -1,0 +1,548 @@
+.pageContainer {
+  min-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: 60px;
+  font-family: Arial, sans-serif;
+  background-color: #000;
+  color: #FFF;
+}
+
+.verificationContainer {
+  display: flex;
+  flex: 1;
+}
+
+.imageSection {
+  width: 45%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.verificationImage {
+  width: 67%;
+  padding-top: 20%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.formSection {
+  width: 60%;
+  padding: 0 6rem 2rem 8rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 2rem;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #CAFF33;
+  }
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2rem;
+}
+
+.verificationForm {
+  width: 100%;
+  max-width: 600px;
+}
+
+.uploadContainer {
+  width: 100%;
+  height: 220px;
+  border: 2px dashed #333;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  transition: border-color 0.3s, background-color 0.3s;
+  position: relative;
+  background-color: #111;
+  text-align: center;
+  
+  &:hover {
+    border-color: #CAFF33;
+    background-color: rgba(202, 255, 51, 0.05);
+  }
+}
+
+.uploadLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.uploadIcon {
+  font-size: 2.5rem;
+  color: #CAFF33;
+  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  i {
+    font-size: 3rem;
+    display: block;
+    text-align: center;
+  }
+}
+
+.uploadText {
+  font-size: 1rem;
+  color: #FFF;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.uploadHint {
+  font-size: 0.8rem;
+  color: #999;
+  text-align: center;
+}
+
+.fileInput {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.previewContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.preview {
+  width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 2px solid #333;
+}
+
+.changeButton {
+  background-color: #333;
+  color: #FFF;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: flex;
+  align-items: center;
+  
+  &:hover {
+    background-color: #444;
+  }
+  
+  i {
+    margin-right: 0.5rem;
+  }
+}
+
+.matchDetails {
+  background-color: #111;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  
+  h3 {
+    color: #CAFF33;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+  }
+}
+
+.matchPercentage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  
+  .percentValue {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #CAFF33;
+  }
+  
+  .percentLabel {
+    font-size: 0.9rem;
+    color: #999;
+  }
+}
+
+.matchList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #333;
+    
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.fieldName {
+  text-transform: capitalize;
+  color: #FFF;
+}
+
+.matchIcon {
+  i {
+    font-size: 1.2rem;
+  }
+}
+
+.matched {
+  i {
+    color: #CAFF33;
+  }
+}
+
+.unmatched {
+  i {
+    color: #ff4d4d;
+  }
+}
+
+.verifyButton {
+  width: 100%;
+  padding: 0.8rem;
+  background-color: #CAFF33;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #b3d929;
+  }
+  
+  &:disabled {
+    background-color: #333;
+    color: #666;
+    cursor: not-allowed;
+  }
+  
+  i {
+    margin-right: 0.5rem;
+  }
+  
+  &.loading {
+    background-color: #333;
+    color: #FFF;
+    
+    i {
+      animation: spin 1s linear infinite;
+    }
+  }
+}
+
+.statusMessage {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  
+  i {
+    margin-right: 0.75rem;
+    font-size: 1.2rem;
+  }
+}
+
+.successMessage {
+  background-color: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.warningMessage {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.errorMessage {
+  background-color: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// Add these new styles for the video verification step
+
+.videoVerificationContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.videoContainer {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.videoElement {
+  width: 100%;
+  border-radius: 8px;
+  border: 2px solid #ddd;
+}
+
+.canvasOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.instructionOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.instruction {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.faceStatus {
+  font-size: 14px;
+}
+
+.countdownOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.countdownNumber {
+  font-size: 6rem;
+  color: #CAFF33;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.recordingIndicator {
+  display: flex;
+  align-items: center;
+  color: #FFF;
+  font-size: 1.2rem;
+  margin-top: 1rem;
+}
+
+.recordingDot {
+  width: 12px;
+  height: 12px;
+  background-color: #CAFF33;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.videoInstructions {
+  background-color: rgba(202, 255, 51, 0.1);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  
+  h3 {
+    font-size: 1rem;
+    color: #CAFF33;
+    margin-bottom: 0.75rem;
+  }
+  
+  ul {
+    padding-left: 1.5rem;
+    
+    li {
+      margin-bottom: 0.4rem;
+      color: #FFF;
+      font-size: 0.9rem;
+    }
+  }
+}
+
+.videoActions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.recordButton {
+  width: 100%;
+  padding: 0.8rem;
+  background-color: #CAFF33;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #b3d929;
+  }
+  
+  &:disabled {
+    background-color: #333;
+    color: #666;
+    cursor: not-allowed;
+  }
+  
+  i {
+    margin-right: 0.5rem;
+  }
+}
+
+.retakeButton {
+  flex: 1;
+  padding: 0.8rem;
+  background-color: #111;
+  color: #FFF;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #333;
+  }
+  
+  i {
+    margin-right: 0.5rem;
+  }
+}
+
+.backButton {
+  padding: 0.6rem 1rem;
+  background-color: transparent;
+  color: #FFF;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.3s;
+  
+  &:hover {
+    color: #CAFF33;
+  }
+  
+  i {
+    margin-right: 0.5rem;
+  }
+}
+
+.doneButton {
+  margin-top: 1rem;
+  padding: 0.8rem 2rem;
+  background-color: #CAFF33;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  
+  &:hover {
+    background-color: #b3d929;
+  }
+}
+
+
+
+
+
+
+
+
