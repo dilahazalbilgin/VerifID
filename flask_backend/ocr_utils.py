@@ -8,6 +8,7 @@ import json
 import base64
 import traceback
 from datetime import datetime # Import datetime for date parsing
+import os
 
 def extract_text_from_id(img, user_data=None):
     """Process ID card image and extract text information"""
@@ -252,3 +253,56 @@ def extract_text_from_id(img, user_data=None):
             traceback.print_exc()
 
     return response
+
+def save_face_from_id_card(img, user_id):
+    """
+    Extract face from ID card image and save it to face_info directory
+    
+    Args:
+        img: OpenCV image of the ID card
+        user_id: User ID to use as filename
+    
+    Returns:
+        bool: True if successful, False otherwise
+        str: Path to saved face image or error message
+    """
+    try:
+        # Create face_info directory if it doesn't exist
+        face_info_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'face_info')
+        os.makedirs(face_info_dir, exist_ok=True)
+        
+        # Extract face from ID card
+        import face_recognition
+        rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_image)
+        
+        if not face_locations:
+            return False, "No face detected in ID card"
+        
+        # Get the first face with a larger margin
+        top, right, bottom, left = face_locations[0]
+        
+        # Increase margin to make the extracted face bigger
+        margin = 100
+        
+        # Calculate new boundaries with larger margins
+        top = max(0, top - margin)
+        left = max(0, left - margin)
+        bottom = min(img.shape[0], bottom + margin)
+        right = min(img.shape[1], right + margin)
+        
+        # Extract face image
+        face_image = img[top:bottom, left:right]
+        
+        # Save face image to file
+        file_path = os.path.join(face_info_dir, f"{user_id}.jpg")
+        cv2.imwrite(file_path, face_image)
+        
+        print(f"Face image saved to {file_path}")
+        return True, file_path
+    except Exception as e:
+        error_msg = f"Error saving face image: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        return False, error_msg
+

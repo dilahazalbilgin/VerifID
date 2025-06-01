@@ -13,288 +13,345 @@ const VideoVerification = () => {
   const socketRef = useRef(null);
   const streamRef = useRef(null);
   
-  const [status, setStatus] = useState('initializing');
-  const [instruction, setInstruction] = useState('');
-  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState('initializing'); // initializing, ready, centering, in_progress, completed, error
+  const [instruction, setInstruction] = useState('Initializing...');
+  const [feedbackMessage, setFeedbackMessage] = useState(''); // For secondary messages like "No face detected"
   const [verificationId, setVerificationId] = useState('');
-  const [referenceFace, setReferenceFace] = useState(null);
   
-  // Get verification ID from location state or previous step
+  // Effect 1: Initializes verificationId and sets status to 'ready'
   useEffect(() => {
     const initVerification = async () => {
+      setStatus('initializing');
+      setInstruction('Initializing verification process...');
       try {
-        // Check if we have a verification ID from the previous step
-        let id = null;
+        let id = location.state?.verificationId || null;
         let needsNewId = true;
         
-        if (location.state?.verificationId) {
-          console.log("Found verification ID in state:", location.state.verificationId);
-          id = location.state.verificationId;
-          
-          // Validate the ID
+        if (id) {
+          console.log("Checking existing verification ID in state:", id);
           const checkResponse = await fetch(`http://localhost:5001/api/verify/face/check/${id}`);
           const checkResult = await checkResponse.json();
           
-          if (checkResult.valid) {
-            console.log("Verification ID is valid:", id);
+          if (checkResult.valid && checkResult.session_details?.status !== 'completed' && checkResult.session_details?.status !== 'failed') {
+            console.log("Verification ID is valid and session is active:", id);
             setVerificationId(id);
-            setStatus('ready');
+            setStatus('ready'); // Ready to connect socket
             needsNewId = false;
           } else {
-            console.log("Verification ID is invalid, will create new one");
+            console.log("Verification ID is invalid or session completed/failed, will create new one. Reason:", checkResult.message || checkResult.session_details?.status);
           }
         }
         
         if (needsNewId) {
-          console.log("Initializing new verification for user:", user.id);
-          // Initialize verification if no ID provided or invalid
+          console.log("Initializing new verification for user:", user?.id);
+          if (!user?.id) {
+            console.error("User ID not available for new verification.");
+            setInstruction('User information not found. Please log in again.');
+            setStatus('error');
+            return;
+          }
           const response = await fetch('http://localhost:5001/api/verify/face/initialize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              session_id: user.id,
-              user_id: user.id
-            })
+            body: JSON.stringify({ user_id: user.id })
           });
           
           const data = await response.json();
           if (data.verification_id) {
             console.log("Received new verification ID:", data.verification_id);
             setVerificationId(data.verification_id);
-            setStatus('ready');
+            setStatus('ready'); // Ready to connect socket
           } else {
             console.error("Failed to initialize verification:", data);
-            setMessage(data.error || 'Failed to initialize verification');
+            setInstruction(data.error || 'Failed to initialize verification process.');
             setStatus('error');
           }
         }
       } catch (error) {
         console.error('Verification initialization error:', error);
-        setMessage('Failed to connect to verification service');
+        setInstruction('Failed to connect to verification service. Please check server.');
         setStatus('error');
       }
     };
     
-    initVerification();
-  }, [location.state, user.id]);
-  
-  // Setup webcam and socket connection
+    if (user?.id) {
+        initVerification();
+    } else {
+        console.log("Waiting for user data to initialize verification...");
+    }
+
+  }, [location.state, user?.id]); // Removed navigate, updateProfile if not directly used by initVerification
+
+  // Effect 2: Webcam/Socket Setup, Event Handlers, and Liveness Logic
+  // This effect now runs primarily when verificationId changes.
+  // Internal logic gates setup based on the current `status`.
   useEffect(() => {
-    if (status !== 'ready' || !verificationId) {
-      console.log("Not ready to connect socket:", status, verificationId);
+    if (!verificationId) {
+      console.log("Main setup effect: No verificationId, skipping setup.");
+      // Cleanup for a previous verificationId would have run if verificationId changed to null/undefined
+      return;
+    }
+
+    // Only proceed with setup if status is 'ready' for the current verificationId.
+    // This prevents re-setup if status changes to other states like 'centering' or 'error'
+    // after initial setup for this verificationId.
+    if (status !== 'ready') {
+      console.log(`Main setup effect: Not in 'ready' state for verificationId ${verificationId}. Current status: ${status}. No new setup initiated.`);
       return;
     }
     
-    console.log("Connecting to socket with verification ID:", verificationId);
-    
-    // Test server connectivity first
-    fetch('http://localhost:5001/ping')
-      .then(response => response.json())
-      .then(data => {
-        console.log("Server ping successful:", data);
-        initializeSocket();
-      })
-      .catch(error => {
-        console.error("Server ping failed:", error);
-        setMessage("Cannot connect to verification server. Please check your connection.");
-        setStatus('error');
-      });
-    
-    function initializeSocket() {
-      // Initialize socket connection with explicit configuration
+    console.log(`Main setup effect: Status is 'ready' for verificationId ${verificationId}. Proceeding with setup.`);
+    setInstruction('Connecting to verification service...');
+
+    let pingIntervalId = null; // Store ping interval ID for cleanup
+
+    function initializeSocketForEffect() {
+      console.log("Initializing socket connection to http://localhost:5001 for ID:", verificationId);
+      
+      if (socketRef.current) {
+        console.log("Cleaning up existing socket connection in initializeSocketForEffect");
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
       socketRef.current = io('http://localhost:5001', {
-        transports: ['polling', 'websocket'],  // Start with polling, upgrade to websocket
+        transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
-        timeout: 20000,  // Increase timeout
-        forceNew: true,  // Force a new connection
-        autoConnect: true
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        autoConnect: true,
+        forceNew: true 
       });
       
-      // Add connection error logging
       socketRef.current.on('connect_error', (error) => {
-        console.error("Socket connection error:", error);
-        setMessage(`Connection error: ${error.message}. Please try again.`);
+        console.error("Socket connection error:", error.message, error.data);
+        setInstruction(`Connection Error: ${error.message}. Retrying...`);
         setStatus('error');
       });
       
-      // Setup socket event handlers
       socketRef.current.on('connect', () => {
-        console.log("Socket connected, socket ID:", socketRef.current.id);
-        // Wait a short time before starting verification to ensure connection is stable
-        setTimeout(() => {
-          console.log("Emitting start_verification with ID:", verificationId);
-          socketRef.current.emit('start_verification', { 
-            verification_id: verificationId 
-          });
-        }, 1000);
+        console.log("Socket connected successfully. SID:", socketRef.current.id, "for VerID:", verificationId);
+        setInstruction('Connected. Starting verification...');
+        console.log("Emitting start_liveness_check with verification_id:", verificationId);
+        socketRef.current.emit('start_liveness_check', { verification_id: verificationId });
       });
       
-      socketRef.current.on('connection_status', (data) => {
-        console.log("Connection status:", data);
+      socketRef.current.on('connection_response', (data) => {
+        console.log("Server connection response:", data);
       });
       
-      socketRef.current.on('verification_connected', (data) => {
-        console.log("Verification connected:", data);
-        setMessage('Connected to verification service');
-      });
-      
-      socketRef.current.on('error', (data) => {
-        console.error("Socket error:", data);
-        setMessage(data.message || 'Verification error');
-        if (data.message === 'Invalid verification ID') {
-          // Clear the invalid verification ID and reinitialize
-          setStatus('error');
-          // Try to initialize a new verification after a short delay
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        }
-      });
-      
-      socketRef.current.on('verification_instruction', (data) => {
-        console.log("Received instruction:", data);
+      socketRef.current.on('liveness_instruction', (data) => {
+        console.log("Received liveness_instruction:", data.instruction, "for VerID:", verificationId);
         setInstruction(data.instruction);
-        setStatus('in_progress');
-      });
-      
-      socketRef.current.on('frame_processed', (data) => {
-        const { result } = data;
-        console.log("Frame processed:", result);
-        
-        // Update UI based on result
-        if (result.face_detected) {
-          if (result.movement) {
-            setMessage(`Movement detected: ${result.movement}`);
-          }
-          
-          if (result.next_instruction) {
-            if (result.next_instruction === "Complete") {
-              setStatus('verifying');
-              setMessage('Liveness check passed. Verifying identity...');
-            } else {
-              setInstruction(result.next_instruction);
-            }
-          }
+        setFeedbackMessage('');
+        if (data.instruction.toLowerCase().includes("center")) {
+          setStatus('centering'); // This status change will NOT cause this useEffect to cleanup/re-run.
         } else {
-          setMessage('No face detected. Please position your face in the camera.');
+          setStatus('in_progress'); // This status change will NOT cause this useEffect to cleanup/re-run.
         }
       });
+
+      socketRef.current.on('liveness_feedback', (data) => {
+        console.log("Received liveness_feedback:", data.message, "for VerID:", verificationId);
+        setFeedbackMessage(data.message);
+      });
       
-      socketRef.current.on('verification_complete', (data) => {
-        console.log("Verification complete:", data);
+      socketRef.current.on('liveness_result', (data) => {
+        console.log("Received liveness_result:", data, "for VerID:", verificationId);
         setStatus('completed');
-        
-        if (data.success && data.match) {
-          setMessage('Verification completed successfully! Face matched.');
-          
-          // Update user profile to mark as verified
+        setFeedbackMessage('');
+
+        if (data.success && data.match_status) {
+          setInstruction('Verification Successful! Redirecting...');
           updateProfile({ isVerified: true })
-            .then(() => {
-              setTimeout(() => navigate('/profile'), 3000);
-            })
+            .then(() => setTimeout(() => navigate('/profile'), 3000))
             .catch(err => console.error('Failed to update profile:', err));
-        } else if (data.success && !data.match) {
-          setMessage(`Face verification failed. The face doesn't match the ID card (${Math.round(data.confidence * 100)}% confidence).`);
-          setTimeout(() => navigate('/verify'), 5000);
         } else {
-          setMessage(data.message || 'Verification failed');
+          setInstruction(data.message || 'Verification Failed. Redirecting to ID verification...');
+          // Redirect to ID verification page after face verification fails
+          setTimeout(() => {
+            navigate('/verify', {
+              state: {
+                fromFaceVerification: true,
+                failureReason: data.message || 'Face verification failed'
+              }
+            });
+          }, 3000);
         }
+
+        setTimeout(() => {
+          if (streamRef.current) {
+            console.log("Stopping webcam tracks on liveness_result for VerID:", verificationId);
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
+        }, 3000);
       });
-      
-      socketRef.current.on('connect_error', (error) => {
-        console.error("Socket connection error:", error);
-        setMessage('Connection error. Please try again.');
+
+      socketRef.current.on('liveness_error', (data) => {
+        console.error("Liveness process error:", data.message, "for VerID:", verificationId);
+        setInstruction(data.message || 'An error occurred during verification.');
+        setFeedbackMessage('');
         setStatus('error');
       });
       
-      // Setup webcam
-      const setupWebcam = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-              facingMode: 'user',
-              width: { ideal: 640 },
-              height: { ideal: 480 }
-            }, 
-            audio: false 
-          });
-          
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            streamRef.current = stream;
+      socketRef.current.on('disconnect', (reason) => {
+        console.log("Socket disconnected:", reason, "for VerID:", verificationId);
+        // Use functional update for setStatus to get the latest status
+        setStatus(prevStatus => {
+          if (prevStatus !== 'completed' && prevStatus !== 'error') {
+            setInstruction('Connection lost. Please check your internet connection.');
+            return 'error';
           }
-          
-          setStatus('streaming');
-        } catch (err) {
-          console.error('Error accessing webcam:', err);
-          setMessage('Could not access webcam');
-          setStatus('error');
-        }
-      };
+          return prevStatus;
+        });
+      });
       
-      setupWebcam();
-      
-      // Cleanup function
-      return () => {
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+      pingIntervalId = setInterval(() => {
+        if (socketRef.current && socketRef.current.connected) {
+          console.log("Sending ping to keep connection alive for VerID:", verificationId);
+          socketRef.current.emit('ping');
         }
-        
-        if (socketRef.current) {
-          console.log("Disconnecting socket");
-          socketRef.current.disconnect();
-        }
-      };
+      }, 5000);
     }
-  }, [status, verificationId, updateProfile, navigate]);
-  
-  // Send frames to server when streaming
+
+    const setupWebcamForEffect = async () => {
+      console.log("Setting up webcam for VerID:", verificationId);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }}, 
+          audio: false 
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+          console.log("Webcam setup complete for VerID:", verificationId);
+          initializeSocketForEffect(); 
+        }
+      } catch (err) {
+        console.error('Error accessing webcam for VerID:', verificationId, err);
+        setInstruction('Webcam access denied or not available. Please check permissions.');
+        setStatus('error');
+      }
+    };
+
+    setupWebcamForEffect(); // Initiate setup
+
+    return () => {
+      // This cleanup runs ONLY when verificationId changes or component unmounts.
+      console.log("Main setup effect: Cleaning up resources for VerID (or unmount):", verificationId);
+      if (pingIntervalId) {
+        clearInterval(pingIntervalId);
+        console.log("Cleared ping interval for VerID:", verificationId);
+      }
+      if (streamRef.current) {
+        console.log("Stopping webcam tracks in main cleanup for VerID:", verificationId);
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null; 
+      }
+      if (socketRef.current) {
+        console.log("Disconnecting socket in main cleanup for VerID:", verificationId, "SID:", socketRef.current.id);
+        socketRef.current.disconnect();
+        socketRef.current = null; 
+      }
+    };
+  }, [verificationId, navigate, updateProfile]); // `status` is removed. `Maps` and `updateProfile` are stable.
+
+  // Effect 3: Frame Sending Logic
   useEffect(() => {
-    if (status !== 'streaming' && status !== 'in_progress') return;
+    if (status !== 'centering' && status !== 'in_progress') {
+      return;
+    }
     
-    console.log("Starting to send frames with verification ID:", verificationId);
+    // Ensure socket is connected before attempting to send frames
+    if (!socketRef.current || !socketRef.current.connected) {
+        console.log(`Frame sending effect: Socket not ready for ${status} state. Skipping frame logic for VerID: ${verificationId}`);
+        return;
+    }
     
-    const intervalId = setInterval(() => {
-      if (videoRef.current && socketRef.current && socketRef.current.connected) {
+    console.log(`Status is ${status}. Starting to send frames for verification ID:`, verificationId);
+    
+    const frameInterval = 500;
+    let frameCount = 0;
+    
+    const sendFrame = () => {
+      if (!videoRef.current || !socketRef.current || !socketRef.current.connected) {
+        console.log("sendFrame: Video or socket not ready, skipping frame for VerID:", verificationId);
+        return;
+      }
+      
+      if (videoRef.current.readyState !== 4) {
+        console.log("sendFrame: Video not ready yet, waiting for VerID:", verificationId);
+        return;
+      }
+      
+      try {
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
-        
         const ctx = canvas.getContext('2d');
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const frameDataUrl = canvas.toDataURL('image/jpeg', 0.6);
         
-        // Convert to base64 and send to server
-        const frame = canvas.toDataURL('image/jpeg', 0.8); // Reduced quality for better performance
-        
-        // Don't log the base64 data
-        socketRef.current.emit('face_frame', {
+        console.log(`Sending frame ${++frameCount} for verification ID: ${verificationId}`);
+        socketRef.current.emit('liveness_frame', {
           verification_id: verificationId,
-          frame: frame.split(',')[1] // Remove data URL prefix
+          frame: frameDataUrl
         });
+      } catch (err) {
+        console.error("Error sending frame for VerID:", verificationId, err);
       }
-    }, 500); // Send frame every 500ms
+    };
     
-    return () => clearInterval(intervalId);
-  }, [status, verificationId]);
+    const intervalId = setInterval(sendFrame, frameInterval);
+    sendFrame(); // Send first frame immediately
+    
+    return () => {
+        console.log("Cleaning up frame sending interval for VerID:", verificationId);
+        clearInterval(intervalId);
+    };
+  }, [status, verificationId]); // Depends on status to start/stop sending, and verificationId for the data
   
-  const debugWebcam = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' }, 
-        audio: false 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setStatus('streaming');
-        console.log("Debug: Webcam accessed successfully");
-      }
-    } catch (err) {
-      console.error('Debug: Error accessing webcam:', err);
-      setMessage(`Debug: Webcam error - ${err.message}`);
+  const handleReload = () => window.location.reload();
+  const handleReconnect = () => {
+    setInstruction('Attempting to reconnect...');
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    // Re-initialize by trying to set status to 'ready'.
+    // This might require re-fetching verificationId if it's lost or invalid.
+    // For simplicity, we set to 'ready', assuming initVerification might run again if needed,
+    // or if verificationId is still valid, the main setup effect's condition will be met.
+    // A more robust reconnect might re-trigger initVerification.
+    // For now, this will make the main setup effect re-evaluate its conditions.
+    if(verificationId) { // Only set to ready if we still have a verificationId
+        setStatus('ready');
+    } else {
+        // If no verificationId, trigger full re-initialization
+        // This can be done by clearing location.state and letting initVerification run
+        // or by directly calling initVerification if user context is available.
+        // For now, simplest is to reload, or let initVerification handle missing ID.
+        console.log("Reconnect: No verificationId, attempting to re-init by resetting status to initializing");
+        setStatus('initializing'); // This should re-trigger initVerification if user.id is present
+         // Or force init:
+        if (user?.id) { // from line 59 logic
+            // Manually trigger re-initialization flow.
+            // Clearing verificationId and setting status to initializing will make Effect 1 run initVerification.
+            setVerificationId(''); 
+            setStatus('initializing'); 
+            // initVerification(); // This would be ideal but initVerification is not in this scope directly
+            // Instead, rely on Effect 1 re-running due to status/verificationId changes in some cases,
+            // OR, a simpler robust reconnect is often a page reload or navigating away and back.
+            // For now, setting status to 'ready' if ID exists, or 'initializing' to re-trigger Effect 1.
+        } else {
+            setInstruction("Cannot reconnect without user information.");
+        }
     }
   };
 
@@ -303,76 +360,50 @@ const VideoVerification = () => {
       <Navbar />
       <div className="video-verification-wrapper">
         <div className="video-verification-container">
-          <h1>Face Verification</h1>
+          <h1>Face Liveness Verification</h1>
           
           <div className="video-container">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={status === 'completed' ? 'completed' : ''}
-              style={{ width: '100%', height: 'auto', display: 'block' }}
-            />
+            <video ref={videoRef} autoPlay playsInline muted className={status === 'completed' ? 'completed' : ''} />
             
             {status === 'initializing' && (
               <div className="status-overlay initializing">
                 <div className="spinner"></div>
-                <p>Initializing verification...</p>
+                <p>{instruction}</p>
               </div>
             )}
             
             {status === 'error' && (
               <div className="status-overlay error">
                 <i className="fas fa-exclamation-circle"></i>
-                <p>{message || 'An error occurred'}</p>
+                <p>{instruction || 'An error occurred'}</p>
+                <p>{feedbackMessage}</p>
                 <div className="button-group">
-                  <button onClick={() => {
-                    // Reload the page to try again
-                    window.location.reload();
-                  }}>
-                    <i className="fas fa-sync"></i> Reload Page
-                  </button>
-                  <button onClick={() => {
-                    // Try to reconnect without reloading
-                    setStatus('ready');
-                  }}>
-                    <i className="fas fa-plug"></i> Reconnect
-                  </button>
-                  <button onClick={debugWebcam}>
-                    <i className="fas fa-video"></i> Debug Webcam
-                  </button>
+                  <button onClick={handleReload}><i className="fas fa-sync"></i> Try Again</button>
+                  {/* <button onClick={handleReconnect}><i className="fas fa-plug"></i> Reconnect</button> */} 
+                  {/* Reconnect button might need more robust logic, consider reload for now */}
                 </div>
               </div>
             )}
             
             {status === 'completed' && (
-              <div className="status-overlay completed">
-                <i className="fas fa-check-circle"></i>
-                <p>{message}</p>
-                <p className="redirect-message">Redirecting...</p>
-              </div>
-            )}
-            
-            {status === 'verifying' && (
-              <div className="status-overlay verifying">
-                <div className="spinner"></div>
-                <p>{message || 'Verifying your identity...'}</p>
+              <div className={`status-overlay completed ${instruction.toLowerCase().includes('successful') ? 'success' : 'failure'}`}>
+                <i className={`fas ${instruction.toLowerCase().includes('successful') ? 'fa-check-circle' : instruction.toLowerCase().includes('redirecting to id') ? 'fa-arrow-right' : 'fa-times-circle'}`}></i>
+                <p>{instruction}</p>
+                {instruction.toLowerCase().includes('redirecting to id') && (
+                  <p style={{fontSize: '14px', marginTop: '10px', opacity: 0.8}}>
+                    You will be redirected to complete ID verification...
+                  </p>
+                )}
               </div>
             )}
           </div>
           
-          {(status === 'streaming' || status === 'in_progress') && (
+          {(status === 'centering' || status === 'in_progress') && (
             <div className="instruction-container">
-              <h2>{instruction || 'Preparing verification...'}</h2>
-              <p>{message || 'Please follow the instructions and keep your face visible'}</p>
-              <div className="liveness-instructions">
-                <p>For liveness check, you'll need to:</p>
-                <ol>
-                  <li>Look at the center of the camera</li>
-                  <li>Look to your right when instructed</li>
-                  <li>Look to your left when instructed</li>
-                </ol>
+              <h2>{instruction || 'Follow instructions...'}</h2>
+              <p className="feedback-message">{feedbackMessage}</p>
+              <div className="liveness-instructions-summary">
+                <p>Please follow the on-screen prompts carefully.</p>
               </div>
             </div>
           )}
@@ -383,19 +414,3 @@ const VideoVerification = () => {
 };
 
 export default VideoVerification;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

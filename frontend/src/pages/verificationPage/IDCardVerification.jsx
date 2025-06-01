@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styles from '../../styles/VerificationPage.module.scss';
 import Navbar from '../../components/Navbar';
 import verificationImage from '../../assets/verification-image.jpg';
@@ -9,6 +9,7 @@ function IDCardVerification() {
   const { user } = useAuth();
   console.log(user);
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -160,6 +161,19 @@ function IDCardVerification() {
         <div className={styles.formSection}>
           <h1>Verify Your Identity</h1>
           <p className={styles.subtitle}>Step 1: Upload a photo of your ID card</p>
+
+          {/* Show message if coming from failed face verification */}
+          {location.state?.fromFaceVerification && (
+            <div className={styles.statusMessage + ' ' + styles.warningMessage} style={{marginBottom: '20px'}}>
+              <i className="fas fa-info-circle"></i>
+              <span>Face verification failed. Please re-verify your ID card to update your reference photo.</span>
+              {location.state?.failureReason && (
+                <div style={{fontSize: '14px', marginTop: '5px', opacity: 0.8}}>
+                  Reason: {location.state.failureReason}
+                </div>
+              )}
+            </div>
+          )}
           
           <form onSubmit={handleVerifyIDCard} className={styles.verificationForm}>
             <div className={styles.fileUpload}>
