@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 function IDCardVerification() {
   const { user } = useAuth();
+  console.log(user);
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -220,7 +221,7 @@ function IDCardVerification() {
             {/* Display match details if available */}
             {matchDetails && matchDetails.matches.length > 0 && (
               <div className={styles.matchDetails}>
-                <h3>Match Results:</h3>
+                <h3>Match Results</h3>
                 <div className={styles.matchPercentage}>
                   <span className={styles.percentValue}>
                     {matchDetails.percentage.toFixed(1)}%
@@ -236,7 +237,10 @@ function IDCardVerification() {
                         {formatFieldName(field)}
                       </span>
                       <span className={styles.matchIcon}>
-                        {matched ? <i className="fas fa-check-circle"></i> : <i className="fas fa-times-circle"></i>}
+                        {matched ? 
+                          <i className="fas fa-check-circle"></i> : 
+                          <i className="fas fa-times-circle"></i>
+                        }
                       </span>
                     </li>
                   ))}
@@ -288,3 +292,4 @@ function IDCardVerification() {
 }
 
 export default IDCardVerification;
+
