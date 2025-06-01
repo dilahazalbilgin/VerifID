@@ -267,10 +267,11 @@ const VideoVerification = () => {
         
         // Convert to base64 and send to server
         const frame = canvas.toDataURL('image/jpeg', 0.8); // Reduced quality for better performance
+        
+        // Don't log the base64 data
         socketRef.current.emit('face_frame', {
           verification_id: verificationId,
           frame: frame.split(',')[1] // Remove data URL prefix
-          // No need to send reference_face as it's stored on the backend
         });
       }
     }, 500); // Send frame every 500ms
@@ -382,6 +383,7 @@ const VideoVerification = () => {
 };
 
 export default VideoVerification;
+
 
 
 

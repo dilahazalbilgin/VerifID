@@ -1,18 +1,19 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import styles from '../../styles/VerificationPage.module.scss'
-import Navbar from '../../components/Navbar'
-import verificationImage from '../../assets/verification-image.jpg'
-import { useAuth } from '../../context/AuthContext'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import styles from '../../styles/VerificationPage.module.scss';
+import Navbar from '../../components/Navbar';
+import verificationImage from '../../assets/verification-image.jpg';
+import { useAuth } from '../../context/AuthContext';
 
 function IDCardVerification() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [verificationStatus, setVerificationStatus] = useState(null)
-  const [matchDetails, setMatchDetails] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const [matchDetails, setMatchDetails] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
   
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -29,6 +30,7 @@ function IDCardVerification() {
     setIsUploading(true);
     setVerificationStatus(null);
     setMatchDetails(null);
+    setExtractedData(null);
     
     // Create form data to send to backend
     const formData = new FormData();
@@ -36,13 +38,19 @@ function IDCardVerification() {
     
     // Add comprehensive user data if available
     if (user) {
-      formData.append('userData', JSON.stringify({
-        id: user.id, // Add user ID for face image storage
-        name: user.firstName,
-        surname: user.lastName,
-        idCardNumber: user.idCardNumber || '',
-        gender: user.gender || ''
-      }));
+      const userData = {
+        id: user.id, // Keep user ID if needed for backend logging/tracking
+        // Removed name and surname as per new backend matching
+        // name: user.firstName,
+        // surname: user.lastName,
+        idNumber: user.idCardNumber || '', // Changed from idCardNumber to idNumber
+        gender: user.gender || '',
+        serialNumber: user.serialNumber || '', // Added serialNumber
+        birthDate: user.birthDate || '' // Added birthDate
+      };
+      
+      console.log('Sending user data:', userData);
+      formData.append('userData', JSON.stringify(userData));
     }
     
     try {
@@ -57,12 +65,29 @@ function IDCardVerification() {
       console.log('Verification result:', result);
       
       if (result.success) {
+        // Store extracted data for display
+        if (result.extracted_data) {
+          setExtractedData(result.extracted_data);
+        }
+        
         // Set match details for display
         if (result.user_match) {
+          console.log('Match details:', result.user_match);
+          
+          // Ensure we have a valid matches array
+          const matches = Array.isArray(result.user_match.matches) 
+            ? result.user_match.matches 
+            : [];
+            
           setMatchDetails({
-            percentage: result.user_match.match_percentage,
-            matches: result.user_match.matches,
-            overall: result.user_match.overall_match
+            percentage: result.user_match.match_percentage || 0,
+            matches: matches,
+            overall: result.user_match.overall_match || false
+          });
+          
+          // Log each match for debugging
+          matches.forEach(match => {
+            console.log(`Match field: ${match[0]}, matched: ${match[1]}`);
           });
         }
         
@@ -98,6 +123,24 @@ function IDCardVerification() {
       console.error('Error during verification:', error);
     } finally {
       setIsUploading(false);
+    }
+  };
+  
+  // Helper function to format field names for display
+  const formatFieldName = (field) => {
+    switch(field) {
+      case 'idNumber': return 'ID Number (User Data)'; // For frontend sent data
+      case 'id_number': return 'ID Number (Extracted)'; // For backend extracted data
+      case 'name': return 'First Name';
+      case 'surname': return 'Last Name';
+      case 'gender': return 'Gender';
+      case 'birthDate': return 'Birth Date (User Data)'; // For frontend sent data
+      case 'birth_date': return 'Birth Date (Extracted)'; // For backend extracted data
+      case 'serialNumber': return 'Serial Number (User Data)'; // For frontend sent data
+      case 'serial_number': return 'Serial Number (Extracted)'; // For backend extracted data
+      case 'nationality': return 'Nationality';
+      case 'expiry_date': return 'Expiry Date';
+      default: return field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
     }
   };
   
@@ -157,7 +200,25 @@ function IDCardVerification() {
               )}
             </div>
             
-            {matchDetails && (
+            {/* Display extracted data if available */}
+            {extractedData && (
+              <div className={styles.extractedData}>
+                <h3>Extracted Information:</h3>
+                <div className={styles.dataGrid}>
+                  {Object.entries(extractedData).map(([key, value]) => (
+                    value !== "(bulunamadı)" && (
+                      <div key={key} className={styles.dataItem}>
+                        <span className={styles.dataLabel}>{formatFieldName(key)}:</span>
+                        <span className={styles.dataValue}>{value}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Display match details if available */}
+            {matchDetails && matchDetails.matches.length > 0 && (
               <div className={styles.matchDetails}>
                 <h3>Match Results:</h3>
                 <div className={styles.matchPercentage}>
@@ -172,10 +233,7 @@ function IDCardVerification() {
                   {matchDetails.matches.map(([field, matched], index) => (
                     <li key={index} className={matched ? styles.matched : styles.unmatched}>
                       <span className={styles.fieldName}>
-                        {field === "idCardNumber" ? "ID Card Number" : 
-                         field === "name" ? "First Name" :
-                         field === "surname" ? "Last Name" :
-                         field === "gender" ? "Gender" : field}
+                        {formatFieldName(field)}
                       </span>
                       <span className={styles.matchIcon}>
                         {matched ? <i className="fas fa-check-circle"></i> : <i className="fas fa-times-circle"></i>}
@@ -229,14 +287,4 @@ function IDCardVerification() {
   );
 }
 
-export default IDCardVerification
-
-
-
-
-
-
-
-
-
-
+export default IDCardVerification;

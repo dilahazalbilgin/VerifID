@@ -6,6 +6,8 @@ import numpy as np
 import string
 import json
 import base64
+import traceback
+from datetime import datetime # Import datetime for date parsing
 
 def extract_text_from_id(img, user_data=None):
     """Process ID card image and extract text information"""
@@ -16,83 +18,130 @@ def extract_text_from_id(img, user_data=None):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     filtered = cv2.bilateralFilter(gray, 11, 17, 17)
     thresh = cv2.adaptiveThreshold(filtered, 255,
-                                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                cv2.THRESH_BINARY, 31, 15)
-    
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY, 31, 15)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+    preprocessed_image = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
     # OCR processing
-    ocr_config = r'--oem 3 --psm 11 -l tur+eng'
-    ocr_result = pytesseract.image_to_data(thresh, config=ocr_config, output_type=Output.DICT)
-    
-    # Extract text from OCR result
+    ocr_config = r'--oem 3 --psm 6 -l tur+eng'
+    ocr_result = pytesseract.image_to_data(preprocessed_image, config=ocr_config, output_type=Output.DICT)
+
     detected_texts = []
     for i in range(len(ocr_result["text"])):
-        if int(ocr_result["conf"][i]) > 30:  # Filter by confidence
-            text = ocr_result["text"][i].strip()
-            if len(text) > 1:  # Filter out single characters
-                detected_texts.append(text)
-    
-    # Combine all detected text
+        text = ocr_result["text"][i].strip()
+        if float(ocr_result["conf"][i]) > 10 and text != "":
+            detected_texts.append(text)
+
     full_text = ' '.join(detected_texts)
-    
-    # Helper function to extract text after specific labels
-    def extract_field_after_label(texts, labels, max_steps=3):
-        for i in range(len(texts)):
-            word = texts[i].lower()
-            if any(label in word for label in labels):
-                field_value = []
-                for j in range(1, max_steps + 1):
-                    if i + j < len(texts):
-                        next_word = texts[i + j]
-                        clean = next_word.strip(string.punctuation)
-                        if clean.isalpha() and len(clean) > 1:
-                            field_value.append(clean)
-                if field_value:
-                    return ' '.join(field_value)
-        return "(bulunamadı)"
-    
-    # Extract ID card information
+    full_text_lower = full_text.lower()
+
+    # Initialize ID card information
     id_card_info = {
-        "id_number": re.search(r'\b\d{11}\b', full_text),
+        "id_number": "(bulunamadı)",
         "surname": "(bulunamadı)",
         "name": "(bulunamadı)",
-        "birth_date": re.search(r'\d{2}\.\d{2}\.\d{4}', full_text),
+        "birth_date": "(bulunamadı)",
         "gender": "(bulunamadı)",
-        "serial_number": re.search(r'[A-Z]{1,3}\d{5,}', full_text),
+        "serial_number": "(bulunamadı)",
         "nationality": "(bulunamadı)",
-        "expiry_date": re.findall(r'\d{2}\.\d{2}\.\d{4}', full_text)
+        "expiry_date": "(bulunamadı)"
     }
-    
-    # Convert regex matches to strings
-    for key in ["id_number", "birth_date", "serial_number"]:
-        if isinstance(id_card_info[key], re.Match):
-            id_card_info[key] = id_card_info[key].group(0)
-        else:
-            id_card_info[key] = "(bulunamadı)"
-    
-    # Handle expiry date (usually the second date on the card)
-    id_card_info["expiry_date"] = id_card_info["expiry_date"][1] if len(id_card_info["expiry_date"]) > 1 else "(bulunamadı)"
-    
-    # Extract name and surname
-    id_card_info["surname"] = extract_field_after_label(detected_texts, ["soyadı", "surname", "sunan"])
-    id_card_info["name"] = extract_field_after_label(detected_texts, ["adı", "name", "given"])
-    
+
+    # Extract ID card information using regex
+    id_number_match = re.search(r'\b\d{11}\b', full_text)
+    if id_number_match:
+        id_card_info["id_number"] = id_number_match.group(0)
+
+    birth_date_match = re.search(r'\d{2}\.\d{2}\.\d{4}', full_text)
+    if birth_date_match:
+        id_card_info["birth_date"] = birth_date_match.group(0)
+
+    serial_number_match = re.search(r'\b[A-Z]\d{2}[A-Z]\d{5}\b', full_text)
+    if serial_number_match:
+        id_card_info["serial_number"] = serial_number_match.group(0)
+
+    all_dates = re.findall(r'\d{2}\.\d{2}\.\d{4}', full_text)
+    if len(all_dates) > 1:
+        id_card_info["expiry_date"] = all_dates[1]
+
+    def extract_name_surname_robustly(ocr_data_dict, detected_texts_list):
+        surname_labels = ["soyadı", "surname", "soyad", "sunan"]
+        name_labels = ["adı", "name", "given", "isim"]
+
+        extracted_surname = "(bulunamadı)"
+        extracted_name = "(bulunamadı)"
+        
+        for i in range(len(ocr_data_dict["text"])):
+            word = ocr_data_dict["text"][i].strip()
+            conf = float(ocr_data_dict["conf"][i])
+            
+            if conf > 60:
+                lower_word = word.lower()
+                
+                if extracted_surname == "(bulunamadı)" and any(label in lower_word for label in surname_labels):
+                    potential_words = []
+                    for j in range(1, 4):
+                        if i + j < len(ocr_data_dict["text"]):
+                            next_word = ocr_data_dict["text"][i + j].strip(string.punctuation)
+                            if len(next_word) > 1 and re.match(r'^[a-zA-ZçÇğĞıİöÖşŞüÜ\-\']+$', next_word):
+                                potential_words.append(next_word)
+                            else:
+                                break
+                    if potential_words:
+                        extracted_surname = ' '.join(potential_words).upper()
+
+                if extracted_name == "(bulunamadı)" and any(label in lower_word for label in name_labels):
+                    potential_words = []
+                    for j in range(1, 4):
+                        if i + j < len(ocr_data_dict["text"]):
+                            next_word = ocr_data_dict["text"][i + j].strip(string.punctuation)
+                            if len(next_word) > 1 and re.match(r'^[a-zA-ZçÇğĞıİöÖşŞüÜ\-\']+$', next_word):
+                                potential_words.append(next_word)
+                            else:
+                                break
+                    if potential_words:
+                        extracted_name = ' '.join(potential_words).upper()
+
+        if extracted_surname == "(bulunamadı)" or extracted_name == "(bulunamadı)":
+            potential_name_surname_candidates = []
+            excluded_words = {"T.C.", "REPUBLIC", "TURKEY", "KIMLIK", "ID", "CARD", "TC", "AD", "SOYAD", "CINSİYET", "MILLIYETI", "DOĞUM"}
+            
+            for text in detected_texts_list:
+                if text.isupper() and len(text) > 1 and not any(char.isdigit() for char in text) and text not in excluded_words:
+                    potential_name_surname_candidates.append(text)
+            
+            if len(potential_name_surname_candidates) >= 2:
+                if extracted_surname == "(bulunamadı)":
+                    extracted_surname = potential_name_surname_candidates[0]
+                if extracted_name == "(bulunamadı)":
+                    extracted_name = potential_name_surname_candidates[1]
+            elif len(potential_name_surname_candidates) == 1:
+                if extracted_surname == "(bulunamadı)":
+                    extracted_surname = potential_name_surname_candidates[0]
+        
+        return extracted_name, extracted_surname
+
+    id_card_info["name"], id_card_info["surname"] = extract_name_surname_robustly(ocr_result, detected_texts)
+
+
     # Determine gender
     if re.search(r'\bK/?F\b', full_text, re.IGNORECASE):
         id_card_info["gender"] = "K/F"
     elif re.search(r'\bE/?M\b', full_text, re.IGNORECASE):
         id_card_info["gender"] = "E/M"
-    
+
     # Determine nationality
-    if "türk" in full_text.lower() or "t.c" in full_text.lower():
+    if "türk" in full_text_lower or "t.c" in full_text_lower:
         id_card_info["nationality"] = "T.C."
-    
+
     # Extract face from ID card
     face_image_base64 = None
     try:
         import face_recognition
         rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         face_locations = face_recognition.face_locations(rgb_image)
-        
+
         if face_locations:
             top, right, bottom, left = face_locations[0]
             margin = 30
@@ -100,16 +149,19 @@ def extract_text_from_id(img, user_data=None):
             left = max(0, left - margin)
             bottom = min(img.shape[0], bottom + margin)
             right = min(img.shape[1], right + margin)
-            
+
             face_image = img[top:bottom, left:right]
             _, buffer = cv2.imencode('.jpg', face_image)
             face_image_base64 = 'data:image/jpeg;base64,' + base64.b64encode(buffer).decode('utf-8')
+    except ImportError:
+        print("Face_recognition library not found. Face extraction skipped.")
     except Exception as e:
         print(f"Error extracting face: {str(e)}")
-    
+        traceback.print_exc()
+
     # Create verification ID
-    verification_id = "verify_" + str(hash(str(id_card_info)))[:8]
-    
+    verification_id = "verify_" + str(abs(hash(str(id_card_info))))[:8]
+
     # Prepare response
     response = {
         "success": True,
@@ -123,132 +175,80 @@ def extract_text_from_id(img, user_data=None):
             "matches": []
         }
     }
-    
+
     # Compare with user data if provided
     if user_data:
         try:
             user_data_dict = user_data if isinstance(user_data, dict) else json.loads(user_data)
             print(f"User data for matching: {user_data_dict}")
-            
+
             matches = []
             match_count = 0
-            total_fields = 0
-            
-            # Compare name
-            if 'name' in user_data_dict and id_card_info['name'] != "(bulunamadı)":
-                total_fields += 1
-                name_match = user_data_dict['name'].lower() in id_card_info['name'].lower()
-                matches.append(["name", name_match])
-                if name_match:
-                    match_count += 1
-                print(f"Name match: {name_match} - '{user_data_dict['name']}' vs '{id_card_info['name']}'")
-            
-            # Compare surname
-            if 'surname' in user_data_dict and id_card_info['surname'] != "(bulunamadı)":
-                total_fields += 1
-                user_surname = user_data_dict['surname'].lower()
-                extracted_surname = id_card_info['surname'].lower()
-                
-                surname_match = (
-                    user_surname in extracted_surname or
-                    extracted_surname in user_surname or
-                    user_surname.replace('i', 'ı') in extracted_surname or
-                    user_surname.replace('ı', 'i') in extracted_surname
-                )
-                
-                matches.append(["surname", surname_match])
-                if surname_match:
-                    match_count += 1
-                print(f"Surname match: {surname_match} - '{user_surname}' vs '{extracted_surname}'")
-            
-            # Compare ID number
-            if 'idCardNumber' in user_data_dict and id_card_info['id_number'] != "(bulunamadı)":
-                total_fields += 1
-                id_match = user_data_dict['idCardNumber'] == id_card_info['id_number']
-                matches.append(["idCardNumber", id_match])
-                if id_match:
-                    match_count += 1
-                print(f"ID match: {id_match} - '{user_data_dict['idCardNumber']}' vs '{id_card_info['id_number']}'")
-            
-            # Compare gender
-            if 'gender' in user_data_dict and id_card_info['gender'] != "(bulunamadı)":
-                total_fields += 1
-                gender_match = False
-                if user_data_dict['gender'].lower() == 'female' and id_card_info['gender'] == 'K/F':
-                    gender_match = True
-                elif user_data_dict['gender'].lower() == 'male' and id_card_info['gender'] == 'E/M':
-                    gender_match = True
-                matches.append(["gender", gender_match])
-                if gender_match:
-                    match_count += 1
-                print(f"Gender match: {gender_match} - '{user_data_dict['gender']}' vs '{id_card_info['gender']}'")
-            
+            total_fields_to_compare = 0 # Renamed for clarity
+
+            # Define fields to compare and their corresponding extracted keys
+            fields_to_check = {
+                "serialNumber": "serial_number",
+                "idNumber": "id_number",
+                "birthDate": "birth_date",
+                "gender": "gender"
+            }
+
+            for user_key, extracted_key in fields_to_check.items():
+                if user_key in user_data_dict:
+                    total_fields_to_compare += 1 # Count every field present in user_data for comparison
+
+                    user_value = user_data_dict[user_key]
+                    extracted_value = id_card_info[extracted_key]
+                    current_match = False
+
+                    if extracted_value == "(bulunamadı)":
+                        # If extracted data is missing, it's a mismatch for this field
+                        current_match = False
+                        print(f"{user_key} match: False (Extracted data not found) - User: '{user_value}'")
+                    else:
+                        # Perform comparison based on the field type
+                        if user_key == "gender":
+                            user_gender_lower = user_value.lower().strip()
+                            extracted_gender_normalized = extracted_value.lower().replace('/', '')
+                            if (user_gender_lower == 'female' and ('k' in extracted_gender_normalized or 'f' in extracted_gender_normalized)) or \
+                               (user_gender_lower == 'male' and ('e' in extracted_gender_normalized or 'm' in extracted_gender_normalized)):
+                                current_match = True
+                            print(f"Gender match: {current_match} - User: '{user_value}' vs Extracted: '{extracted_value}'")
+                        
+                        elif user_key == "birthDate":
+                            # Frontend date format (2003-07-03T00:00:00.000Z) vs Extracted date format (03.07.2003)
+                            try:
+                                user_birth_date_str_iso = user_value.split('T')[0] # '2003-07-03'
+                                user_birth_date_obj = datetime.strptime(user_birth_date_str_iso, '%Y-%m-%d')
+                                user_birth_date_formatted = user_birth_date_obj.strftime('%d.%m.%Y')
+                                current_match = user_birth_date_formatted == extracted_value.strip()
+                            except (ValueError, AttributeError): # Handle if user_value is not a string or malformed
+                                current_match = False # Date format mismatch or error
+                            print(f"Birth Date match: {current_match} - User: '{user_value}' (formatted: '{user_birth_date_formatted}') vs Extracted: '{extracted_value}'")
+
+                        else: # For serialNumber and idNumber
+                            current_match = user_value.strip().upper() == extracted_value.strip().upper()
+                            print(f"{user_key} match: {current_match} - User: '{user_value}' vs Extracted: '{extracted_value}'")
+                    
+                    matches.append([user_key, current_match])
+                    if current_match:
+                        match_count += 1
+
             # Calculate match percentage
-            match_percentage = (match_count / total_fields * 100) if total_fields > 0 else 0
-            
-            # Update response with match data
+            match_percentage = (match_count / total_fields_to_compare * 100) if total_fields_to_compare > 0 else 0
+
             response["user_match"] = {
-                "overall_match": match_percentage >= 50,
+                "overall_match": match_percentage >= 50, # You can adjust this threshold
                 "match_percentage": match_percentage,
                 "matches": matches
             }
-            
-            print(f"Match results: {match_count}/{total_fields} fields matched ({match_percentage}%)")
+
+            print(f"Match results: {match_count}/{total_fields_to_compare} fields matched ({match_percentage}%)")
             print(f"Final matches array: {matches}")
-            
+
         except Exception as e:
             print(f"Error comparing user data: {str(e)}")
-            import traceback
             traceback.print_exc()
-    
+
     return response
-
-def extract_face_from_id(image):
-    """Extract face from ID card image with a larger margin"""
-    try:
-        import face_recognition
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_image)
-        
-        if not face_locations:
-            return None
-        
-        top, right, bottom, left = face_locations[0]
-        
-        face_height = bottom - top
-        face_width = right - left
-        
-        margin_vertical = int(face_height * 0.5)
-        margin_horizontal = int(face_width * 0.5)
-        
-        top = max(0, top - margin_vertical)
-        left = max(0, left - margin_horizontal)
-        bottom = min(image.shape[0], bottom + margin_vertical)
-        right = min(image.shape[1], right + margin_horizontal)
-        
-        face_image = image[top:bottom, left:right]
-        
-        return face_image
-    except Exception as e:
-        print(f"Error extracting face: {str(e)}")
-        return None
-
-def levenshtein_distance(s1, s2):
-    """Calculate the Levenshtein distance between two strings"""
-    if len(s1) < len(s2):
-        return levenshtein_distance(s2, s1)
-    
-    if len(s2) == 0:
-        return len(s1)
-    
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            insertions = previous_row[j + 1] + 1
-            deletions = current_row[j] + 1
-            substitutions = previous_row[j] + (c1 != c2)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-    
-    return previous_row[-1]

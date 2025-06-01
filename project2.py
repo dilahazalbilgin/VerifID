@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import string
 
-img_path = r"C:\Users\Monster\Desktop\workworkworkworkwork\AdvancedPrograming\Python\a.jpg"
+img_path = r"./test_id/dilatest.jpeg"
 
 img = cv2.imread(img_path)
 if img is None:
