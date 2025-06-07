@@ -1,3 +1,4 @@
+@use "sass:color";
 .pageContainer {
   min-height: 100vh;
   display: flex;
@@ -38,6 +39,8 @@
   }
 }
 
+
+
 .homeButton {
   display: inline-block;
   padding: 0.8rem 2rem;
@@ -50,9 +53,9 @@
   cursor: pointer;
   transition: background-color 0.3s;
   text-decoration: none;
-  
+
   &:hover {
-    background-color: darken(#CAFF33, 10%);
+    background-color: color.scale(#CAFF33, $lightness: -10%);
     text-decoration: none;
   }
 }

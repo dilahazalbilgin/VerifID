@@ -1,3 +1,4 @@
+@use "sass:color";
 .pageContainer {
   height: 88vh;
   display: flex;
@@ -108,6 +109,8 @@
   }
 }
 
+
+
 .registerBtn {
   width: 100%;
   padding: 0.8rem;
@@ -120,9 +123,9 @@
   cursor: pointer;
   transition: background-color 0.3s;
   margin-top: 1rem;
-  
+
   &:hover {
-    background-color: darken(#CAFF33, 10%);
+    background-color: color.scale(#CAFF33, $lightness: -10%);
   }
 }
 

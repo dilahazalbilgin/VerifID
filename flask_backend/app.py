@@ -18,20 +18,19 @@ from ocr_utils import extract_text_from_id, save_face_from_id_card
 # Assuming liveness_detection.py and face_utils.py are updated as per previous steps
 # and are in the same directory or Python path.
 # Specific imports to avoid ambiguity if function names overlap.
-from liveness_detection import (
+# All required functions are now in one service file.
+from liveness_service import (
     get_reference_face_encoding,
     process_liveness_frame,
     verify_face_match,
     generate_random_liveness_commands,
     detect_face_blur,
     validate_face_consistency,
-    base64_to_image as liveness_base64_to_image # Use an alias if needed
+    base64_to_image
 )
-from face_utils import (
-    # base64_to_image as fu_base64_to_image, # Example if face_utils also has it
-    detect_face_details, # Assuming this is the intended function from face_utils
-    capture_face_image_for_test
-)
+# You would also move ocr_utils and other dependencies as needed.
+from ocr_utils import extract_text_from_id, save_face_from_id_card
+# The capture_face_image_for_test can be moved into liveness_service.py if needed.
 
 
 # Configure logging
@@ -283,7 +282,7 @@ def handle_start_liveness_check(data):
             return
 
         # Load reference face encoding
-        from liveness_detection import get_reference_face_encoding
+        from liveness_service import get_reference_face_encoding
 
         # Debug the face_info directory path
         import os
@@ -304,7 +303,7 @@ def handle_start_liveness_check(data):
             return
 
         # Try to load the reference face encoding
-        reference_encoding = get_reference_face_encoding(user_id)
+        reference_encoding = get_reference_face_encoding(user_id, face_info_dir)
         if reference_encoding is None:
             logger.error(f"Failed to load reference face encoding for user {user_id}")
             emit('liveness_error', {'message': 'Could not process reference face. Please try again.'})
@@ -433,7 +432,7 @@ def handle_liveness_frame(data):
         
         elif session['status'] == 'in_progress':
             # Process liveness detection frame
-            from liveness_detection import process_liveness_frame, verify_face_match
+            from liveness_service import process_liveness_frame, verify_face_match
             
             # Get current command
             current_command_index = session.get('current_command_index', 0)
@@ -580,17 +579,6 @@ def handle_liveness_frame(data):
         logger.error(f"Error processing liveness frame: {str(e)}", exc_info=True)
         emit('liveness_error', {'message': f"Error processing frame: {str(e)}"})
 
-
-# Test routes (can be removed or secured in production)
-@app.route('/api/test/face-capture', methods=['GET'])
-def route_test_face_capture(): # Renamed to avoid conflict
-    frame, message = capture_face_image_for_test() # Use updated function name
-    if frame is None:
-        return jsonify({'error': message}), 500
-    filename = f"test_capture_{uuid.uuid4()}.jpg"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    cv2.imwrite(filepath, frame)
-    return jsonify({'success': True, 'message': 'Face captured successfully', 'image_path': filepath})
 
 @app.route('/api/uploads/<filename>', methods=['GET'])
 def get_uploaded_file(filename):

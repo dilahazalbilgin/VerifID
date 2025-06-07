@@ -1,3 +1,4 @@
+@use "sass:color";
 .pageContainer {
   min-height: 88vh;
   display: flex;
@@ -105,6 +106,8 @@
   }
 }
 
+
+
 .loginBtn {
   width: 100%;
   padding: 0.8rem;
@@ -116,9 +119,9 @@
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.3s;
-  
+
   &:hover {
-    background-color: darken(#CAFF33, 10%);
+    background-color: color.scale(#CAFF33, $lightness: -10%);
   }
 }
 
