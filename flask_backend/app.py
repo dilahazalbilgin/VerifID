@@ -15,22 +15,14 @@ import logging
 # Assuming ocr_utils.py is in the same directory or Python path
 from ocr_utils import extract_text_from_id, save_face_from_id_card
 
-# Assuming liveness_detection.py and face_utils.py are updated as per previous steps
-# and are in the same directory or Python path.
-# Specific imports to avoid ambiguity if function names overlap.
-# All required functions are now in one service file.
+# Updated import statement to remove face_blur and validate_face_consistency
 from liveness_service import (
     get_reference_face_encoding,
     process_liveness_frame,
     verify_face_match,
     generate_random_liveness_commands,
-    detect_face_blur,
-    validate_face_consistency,
     base64_to_image
 )
-# You would also move ocr_utils and other dependencies as needed.
-from ocr_utils import extract_text_from_id, save_face_from_id_card
-# The capture_face_image_for_test can be moved into liveness_service.py if needed.
 
 
 # Configure logging
@@ -47,8 +39,8 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Initialize SocketIO with proper CORS settings
 socketio = SocketIO(
-    app, 
-    cors_allowed_origins="*", 
+    app,
+    cors_allowed_origins="*",
     async_mode='gevent',
     logger=True,
     engineio_logger=True,
@@ -91,9 +83,6 @@ def cleanup_old_sessions():
     for session_id in sessions_to_remove:
         logger.info(f"Cleaning up old session: {session_id}")
         del verification_sessions[session_id]
-
-# Add time module for timestamps
-import time
 
 # Liveness constants
 LIVENESS_COMMAND_SEQUENCE = ['right', 'center', 'left']  # Standard sequence after initial centering
@@ -213,8 +202,7 @@ def initialize_face_verification():
             return jsonify({'error': 'Missing user_id'}), 400
         
         # Check if reference face exists
-        import os
-        face_info_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'face_info')
+        face_info_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'face_info')
         face_path = os.path.join(face_info_dir, f"{user_id}.jpg")
         
         if not os.path.exists(face_path):
@@ -226,18 +214,18 @@ def initialize_face_verification():
         
         # Create a new verification session with random commands
         verification_id = str(uuid.uuid4())
-        random_commands = generate_random_liveness_commands(3)  # Generate 3 random commands (reduced from 4)
+        random_commands = generate_random_liveness_commands(3)  # Generate 3 random commands
         verification_sessions[verification_id] = {
             'user_id': user_id,
             'status': 'initialized',
             'liveness_commands': random_commands,  # Use random commands for security
             'current_command_index': 0,
             'reference_center_x': None,
-            'reference_face_size': None,  # Store reference face size for consistency checks
+            'reference_face_size': None,
             'movements_done': [],
             'created_at': time.time(),
             'failed_attempts': 0,  # Track failed attempts
-            'max_attempts': 5  # Maximum allowed attempts (increased from 3)
+            'max_attempts': 5  # Maximum allowed attempts
         }
         
         logger.info(f"Face verification session initialized for user {user_id}: {verification_id}")
@@ -262,7 +250,6 @@ def handle_start_liveness_check(data):
         emit('liveness_error', {'message': 'No verification ID provided'})
         return
 
-    # Clean up old sessions before checking
     cleanup_old_sessions()
 
     if verification_id not in verification_sessions:
@@ -281,26 +268,9 @@ def handle_start_liveness_check(data):
             emit('liveness_error', {'message': 'Invalid session data'})
             return
 
-        # Load reference face encoding
-        from liveness_service import get_reference_face_encoding
-
-        # Debug the face_info directory path
-        import os
-        face_info_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'face_info')
-        logger.debug(f"Looking for reference face in: {face_info_dir}")
-
-        # Check if the directory exists
-        if not os.path.exists(face_info_dir):
-            logger.error(f"face_info directory does not exist: {face_info_dir}")
-            os.makedirs(face_info_dir, exist_ok=True)
-            logger.info(f"Created face_info directory: {face_info_dir}")
-
-        # Check if the user's face image exists
-        face_path = os.path.join(face_info_dir, f"{user_id}.jpg")
-        if not os.path.exists(face_path):
-            logger.error(f"Reference face image not found for user {user_id} at {face_path}")
-            emit('liveness_error', {'message': 'Reference face not found. Please complete ID verification first.'})
-            return
+        # Define face_info directory relative to the current file
+        face_info_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'face_info')
+        logger.debug(f"Looking for reference face in: {os.path.abspath(face_info_dir)}")
 
         # Try to load the reference face encoding
         reference_encoding = get_reference_face_encoding(user_id, face_info_dir)
@@ -313,15 +283,12 @@ def handle_start_liveness_check(data):
 
         # Store reference encoding in session
         session['reference_encoding'] = reference_encoding
-
-        # Initialize liveness check (allow reconnection)
         session['status'] = 'centering'
-        session['socket_sid'] = request.sid  # Update socket ID for reconnection
-        session['disconnected'] = False  # Mark as reconnected
+        session['socket_sid'] = request.sid
+        session['disconnected'] = False
         if 'disconnected_at' in session:
-            del session['disconnected_at']  # Remove disconnection timestamp
+            del session['disconnected_at']
 
-        # Use the random commands from the session instead of fixed ones
         if 'liveness_commands' not in session:
             session['liveness_commands'] = generate_random_liveness_commands(3)
 
@@ -337,240 +304,105 @@ def handle_liveness_frame(data):
     verification_id = data.get('verification_id')
     frame_data_b64 = data.get('frame')
 
-    # Clean up old sessions periodically
-    cleanup_old_sessions()
-
-    if not verification_id:
-        logger.error("No verification_id provided in liveness_frame")
-        emit('liveness_error', {'message': 'No verification ID provided'})
-        return
-
-    if verification_id not in verification_sessions:
-        logger.error(f"Invalid verification_id in liveness_frame: {verification_id}")
-        # Don't emit error if session was just cleaned up - this is normal during completion
+    if not verification_id or verification_id not in verification_sessions:
         return
     
     session = verification_sessions[verification_id]
 
-    # Prevent processing if session is already completed or failed
     if session.get('status') in ['completed', 'failed']:
-        logger.debug(f"Ignoring frame for {session.get('status')} session: {verification_id}")
         return
 
     if not frame_data_b64:
-        logger.error(f"No frame data provided for {verification_id}")
-        emit('liveness_feedback', {'message': 'No frame data received'})
         return
     
-    # Initialize frame counter if not exists
-    if 'frame_counter' not in session:
-        session['frame_counter'] = 0
-    
-    session['frame_counter'] += 1
-    
-    # Process every 2nd frame to reduce load
-    if session['frame_counter'] % 2 != 0:
+    session['frame_counter'] = session.get('frame_counter', 0) + 1
+    if session['frame_counter'] % FRAME_SKIP_RATE != 0:
         return
     
     try:
-        # Convert base64 to image
-        import base64
-        import cv2
-        import numpy as np
-        
-        # Remove data URL prefix if present
-        if ',' in frame_data_b64:
-            frame_data_b64 = frame_data_b64.split(',')[1]
-            
-        # Decode base64 to binary
-        img_data = base64.b64decode(frame_data_b64)
-        
-        # Convert to numpy array
-        nparr = np.frombuffer(img_data, np.uint8)
-        
-        # Decode image
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+        frame = base64_to_image(frame_data_b64)
         if frame is None:
             logger.error(f"Failed to decode image for {verification_id}")
-            emit('liveness_feedback', {'message': 'Failed to process image'})
             return
             
-        # Process based on session status
         if session['status'] == 'centering':
-            # Simple face detection for centering
-            import face_recognition
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             face_locations = face_recognition.face_locations(rgb_frame)
             
             if face_locations:
-                # Face detected, set reference center and move to first command
                 top, right, bottom, left = face_locations[0]
                 session['reference_center_x'] = (left + right) // 2
-
-                # Store reference face size for consistency checks
-                face_width = right - left
-                face_height = bottom - top
-                session['reference_face_size'] = {'width': face_width, 'height': face_height}
-
+                session['reference_face_size'] = {'width': right - left, 'height': bottom - top}
                 session['status'] = 'in_progress'
                 session['current_command_index'] = 0
-
-                # Start with first command
-                first_command = session['liveness_commands'][session['current_command_index']]
+                first_command = session['liveness_commands'][0]
                 session['command_start_time'] = time.time()
-
                 logger.info(f"Centering successful for {verification_id}. Starting with command: {first_command}")
-                emit('liveness_instruction', {
-                    'instruction': f"Please look {first_command}"
-                })
+                emit('liveness_instruction', {'instruction': f"Please look {first_command}"})
             else:
-                # No face detected, keep centering
-                emit('liveness_feedback', {
-                    'message': "No face detected. Please ensure your face is clearly visible."
-                })
+                emit('liveness_feedback', {'message': "No face detected. Please ensure your face is clearly visible."})
         
         elif session['status'] == 'in_progress':
-            # Process liveness detection frame
-            from liveness_service import process_liveness_frame, verify_face_match
-            
-            # Get current command
             current_command_index = session.get('current_command_index', 0)
-            if current_command_index >= len(session['liveness_commands']):
-                logger.error(f"Invalid command index {current_command_index} for session {verification_id}")
-                emit('liveness_error', {'message': 'Invalid command sequence'})
-                return
-            
             current_command = session['liveness_commands'][current_command_index]
             reference_center_x = session.get('reference_center_x')
             
             if reference_center_x is None:
-                logger.error(f"Reference center X not set for session {verification_id}")
                 emit('liveness_error', {'message': 'Reference position not established'})
                 return
             
-            # Process the frame for liveness detection
             result = process_liveness_frame(frame, reference_center_x, current_command)
 
             if not result['face_detected']:
                 error_msg = result.get('error_message', 'Face not detected. Please keep your face in view.')
                 emit('liveness_feedback', {'message': error_msg})
-
-                # Track failed attempts
                 session['failed_attempts'] = session.get('failed_attempts', 0) + 1
                 if session['failed_attempts'] >= session.get('max_attempts', 5):
-                    emit('liveness_result', {
-                        'success': False,
-                        'message': 'Verification failed: Too many failed attempts.',
-                        'match_status': False
-                    })
-                    # Mark session as failed instead of deleting immediately
+                    emit('liveness_result', {'success': False, 'message': 'Verification failed: Too many failed attempts.', 'match_status': False})
                     if verification_id in verification_sessions:
                         verification_sessions[verification_id]['status'] = 'failed'
                         verification_sessions[verification_id]['completed_at'] = time.time()
                 return
 
-            # Validate face consistency if we have reference data (made less strict)
-            if session.get('reference_face_size'):
-                current_face_size = result.get('face_size', {})
-                is_consistent, size_diff = validate_face_consistency(
-                    current_face_size,
-                    session['reference_face_size']
-                )
-
-                # Only warn, don't fail the verification for consistency issues
-                if not is_consistent:
-                    logger.warning(f"Face size inconsistency detected: {size_diff:.2f}")
-                    # Just log the warning, don't return/fail
-
-            # Check for face blur (anti-spoofing) - made less strict
-            face_location = result.get('face_location')
-            if face_location:
-                is_clear, blur_score = detect_face_blur(
-                    frame,
-                    (face_location['top'], face_location['right'], face_location['bottom'], face_location['left'])
-                )
-
-                # Only warn for very blurry images, don't fail for moderate blur
-                if not is_clear and blur_score < 25:  # Only fail for extremely blurry images
-                    emit('liveness_feedback', {
-                        'message': 'Image quality very low. Please ensure better lighting.'
-                    })
-                    return
-
-            # Log the detected movement
-            logger.debug(f"Movement detected: {result['movement_detected']}, expected: {current_command}, "
-                        f"distance: {result.get('movement_distance', 0)}, threshold: {result.get('threshold_used', 0)}")
+            # --- VALIDATE FACE CONSISTENCY and DETECT FACE BLUR BLOCKS ARE REMOVED ---
             
-            # Check if the command was matched
+            logger.debug(f"Movement detected: {result['movement_detected']}, expected: {current_command}")
+            
             if result['command_matched']:
-                # Command matched, move to next or complete
                 session['movements_done'].append(current_command)
                 current_command_index += 1
                 session['current_command_index'] = current_command_index
                 
                 if current_command_index >= len(session['liveness_commands']):
-                    # All commands completed, verify face match
                     logger.info(f"All liveness commands completed for {verification_id}. Verifying face match.")
                     
-                    # Ensure reference encoding is available
                     if 'reference_encoding' not in session:
-                        logger.error(f"Reference encoding not found in session {verification_id}")
                         emit('liveness_error', {'message': 'Reference face data not available'})
                         return
                     
-                    # Verify face match
                     match_result, confidence, match_message = verify_face_match(frame, session['reference_encoding'])
-
                     logger.info(f"Face match result for {verification_id}: {match_result}, confidence: {confidence}, message: {match_message}")
 
-                    # Send result to client
-                    if match_result:
-                        emit('liveness_result', {
-                            'success': True,
-                            'message': 'Verification Successful! Face matched and liveness confirmed.',
-                            'match_status': match_result,
-                            'confidence': confidence,
-                            'match_threshold': 0.55  # Updated threshold (relaxed)
-                        })
-                    else:
-                        emit('liveness_result', {
-                            'success': False,
-                            'message': f'Verification Failed: {match_message}',
-                            'match_status': match_result,
-                            'confidence': confidence,
-                            'match_threshold': 0.55
-                        })
+                    emit('liveness_result', {
+                        'success': match_result,
+                        'message': 'Verification Successful!' if match_result else f'Verification Failed: {match_message}',
+                        'match_status': match_result,
+                        'confidence': confidence
+                    })
                     
-                    # Mark session as completed instead of deleting immediately
                     if verification_id in verification_sessions:
-                        verification_sessions[verification_id]['status'] = 'completed'
+                        verification_sessions[verification_id]['status'] = 'completed' if match_result else 'failed'
                         verification_sessions[verification_id]['completed_at'] = time.time()
                 else:
-                    # Move to next command
                     next_command = session['liveness_commands'][current_command_index]
                     session['command_start_time'] = time.time()
-                    
-                    emit('liveness_instruction', {
-                        'instruction': f"Please look {next_command}"
-                    })
+                    emit('liveness_instruction', {'instruction': f"Please look {next_command}"})
             else:
-                # Not matched yet, provide feedback
-                emit('liveness_feedback', {
-                    'message': f"Detected: {result['movement_detected']}. Please look {current_command}."
-                })
+                emit('liveness_feedback', {'message': f"Detected: {result['movement_detected']}. Please look {current_command}."})
                 
-                # Check for timeout
-                if 'command_start_time' in session and time.time() - session['command_start_time'] > 10:  # 10 second timeout
+                if 'command_start_time' in session and time.time() - session['command_start_time'] > 10:
                     session['status'] = 'failed'
-                    
-                    emit('liveness_result', {
-                        'success': False,
-                        'message': f"Verification Failed: Timeout on '{current_command}' command.",
-                        'match_status': False
-                    })
-                    
-                    # Mark session as failed instead of deleting immediately
+                    emit('liveness_result', {'success': False, 'message': f"Verification Failed: Timeout on '{current_command}' command.", 'match_status': False})
                     if verification_id in verification_sessions:
                         verification_sessions[verification_id]['status'] = 'failed'
                         verification_sessions[verification_id]['completed_at'] = time.time()
@@ -586,9 +418,7 @@ def get_uploaded_file(filename):
 
 @app.route('/api/verify/face/check/<verification_id>', methods=['GET'])
 def check_verification_id_route(verification_id):
-    # Clean up old sessions first
     cleanup_old_sessions()
-
     if verification_id in verification_sessions:
         session_info = verification_sessions[verification_id]
         return jsonify({
@@ -603,21 +433,16 @@ def check_verification_id_route(verification_id):
             }
         })
     else:
-        return jsonify({
-            'valid': False,
-            'message': 'Verification ID not found or expired'
-        })
+        return jsonify({'valid': False, 'message': 'Verification ID not found or expired'})
 
 
 if __name__ == '__main__':
     logger.info("Starting Flask-SocketIO server with gevent...")
-    # Make sure gevent-websocket is installed
     try:
         from geventwebsocket.handler import WebSocketHandler
         from gevent.pywsgi import WSGIServer
         
-        http_server = WSGIServer(('0.0.0.0', 5001), app, 
-                                handler_class=WebSocketHandler)
+        http_server = WSGIServer(('0.0.0.0', 5001), app, handler_class=WebSocketHandler)
         logger.info("Server starting with WebSocketHandler")
         http_server.serve_forever()
     except ImportError:
@@ -629,7 +454,3 @@ if __name__ == '__main__':
             debug=True,
             use_reloader=False
         )
-
-
-
-

@@ -1,3 +1,4 @@
+# liveness_service.py
 import cv2
 import face_recognition
 import numpy as np
@@ -21,50 +22,48 @@ def base64_to_image(base64_string):
         return None
 
 def get_reference_face_encoding(user_id, face_info_dir='./face_info'):
-    """Loads a reference image for a given user_id and returns the face encoding."""
-    import logging
-    logger = logging.getLogger(__name__)
-
+    """
+    Loads a reference image for a given user_id and returns the face encoding.
+    [VERSION WITH ENHANCED LOGGING]
+    """
     face_path = os.path.join(face_info_dir, f"{user_id}.jpg")
-    logger.debug(f"Looking for reference face at: {face_path}")
+    print(f"[DEBUG] Attempting to load reference face from: {os.path.abspath(face_path)}")
 
     if not os.path.exists(face_path):
-        logger.error(f"Reference face file does not exist: {face_path}")
+        print(f"[ERROR] File does not exist at path: {face_path}")
         return None
 
     try:
+        print(f"[DEBUG] File found. Loading image with face_recognition...")
         reference_image = face_recognition.load_image_file(face_path)
+        print(f"[DEBUG] Image loaded successfully. Now encoding face...")
+        
         reference_encodings = face_recognition.face_encodings(reference_image)
 
         if not reference_encodings:
-            logger.error(f"No face encodings found in reference image: {face_path}")
+            print(f"[ERROR] Image at {face_path} was loaded, but NO FACE was detected in it.")
             return None
-
-        logger.info(f"Successfully loaded reference face encoding from: {face_path}")
+        
+        print(f"[SUCCESS] Face encoding successful for user {user_id}.")
         return reference_encodings[0]
+
     except Exception as e:
-        logger.error(f"Error loading reference face encoding from {face_path}: {str(e)}")
+        print(f"[CRITICAL ERROR] An exception occurred while processing {face_path}: {e}")
         return None
 
 # --- Functions Required by app.py ---
 
 def generate_random_liveness_commands(num_commands=3):
-    """
-    Generate a random sequence of liveness commands to prevent replay attacks.
-    [This function is restored for app.py]
-    """
+    """Generate a random sequence of liveness commands."""
     possible_commands = ['left', 'right', 'center']
-    commands = ['center'] # Always start with center
+    commands = ['center']
     for _ in range(num_commands - 1):
         available = [cmd for cmd in possible_commands if cmd != commands[-1]]
         commands.append(random.choice(available))
     return commands
 
 def process_liveness_frame(frame, reference_center_x, command_to_check, face_detection_threshold=40):
-    """
-    Process a single frame for liveness detection based on face displacement.
-    [This is the essential function your app.py needs for its real-time loop]
-    """
+    """Process a single frame for liveness detection based on face displacement."""
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     face_locations = face_recognition.face_locations(rgb_frame)
 
@@ -93,10 +92,7 @@ def process_liveness_frame(frame, reference_center_x, command_to_check, face_det
     }
 
 def verify_face_match(frame, reference_encoding, tolerance=0.55):
-    """
-    Verify if the face in the final frame matches the reference face encoding.
-    [This function is restored for the final check in app.py]
-    """
+    """Verify if the face in the final frame matches the reference face encoding."""
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     live_encodings = face_recognition.face_encodings(rgb_frame)
 
@@ -112,6 +108,3 @@ def verify_face_match(frame, reference_encoding, tolerance=0.55):
     message = "Success" if match else f"Face does not match (confidence: {confidence:.2f})"
     return match, confidence, message
 
-# --- Optional Security Functions (You can add these back if needed) ---
-# For now, these are stubbed so your app doesn't crash.
-# You can implement their real logic from your old `liveness_detection.py` if desired.
