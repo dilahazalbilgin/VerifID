@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styles from '../../styles/VerificationPage.module.scss';
 import Navbar from '../../components/Navbar';
-import verificationImage from '../../assets/verification-image.jpg';
+import verificationImage from '../../assets/login.png';
 import { useAuth } from '../../context/AuthContext';
 
 function IDCardVerification() {

@@ -17,10 +17,16 @@ export const registerUser = async (req, res) => {
       gender 
     } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists by email
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    // Check if ID card number already exists
+    const idCardExists = await User.findOne({ idCardNumber });
+    if (idCardExists) {
+      return res.status(400).json({ message: 'User with this ID card number already exists' });
     }
 
     // Create new user
@@ -52,9 +58,35 @@ export const registerUser = async (req, res) => {
       res.status(400).json({ message: 'Invalid user data' });
     }
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
+    console.error('Registration error:', error);
+
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      let message = 'Duplicate entry detected';
+
+      if (field === 'email') {
+        message = 'User with this email already exists';
+      } else if (field === 'idCardNumber') {
+        message = 'User with this ID card number already exists';
+      }
+
+      return res.status(400).json({ message });
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: messages
+      });
+    }
+
+    // Generic server error
+    res.status(500).json({
+      message: 'Server error occurred during registration',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -140,9 +172,35 @@ export const updateUserProfile = async (req, res) => {
       res.status(404).json({ message: 'User not found' });
     }
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
+    console.error('Profile update error:', error);
+
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      let message = 'Duplicate entry detected';
+
+      if (field === 'email') {
+        message = 'User with this email already exists';
+      } else if (field === 'idCardNumber') {
+        message = 'User with this ID card number already exists';
+      }
+
+      return res.status(400).json({ message });
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: messages
+      });
+    }
+
+    // Generic server error
+    res.status(500).json({
+      message: 'Server error occurred during profile update',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };

@@ -25,7 +25,8 @@ const userSchema = new mongoose.Schema({
   },
   idCardNumber: {
     type: String,
-    required: [true, 'ID card number is required']
+    required: [true, 'ID card number is required'],
+    unique: true
   },
   serialNumber: {
     type: String,

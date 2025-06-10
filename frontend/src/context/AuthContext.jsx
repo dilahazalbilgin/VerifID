@@ -121,7 +121,9 @@ export function AuthProvider({ children }) {
       console.log("Update response data:", data); // Debug log
       
       if (!response.ok) {
-        throw new Error(data.message || 'Profile update failed');
+        // Handle specific error messages from backend
+        const errorMessage = data.message || 'Profile update failed';
+        throw new Error(errorMessage);
       }
       
       // Preserve existing user data and merge with updated data

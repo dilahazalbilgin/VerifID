@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import styles from '../../styles/RegisterPage.module.scss';
 import Navbar from '../../components/Navbar';
-import verificationImage from '../../assets/verification-image.jpg';
+import verificationImage from '../../assets/register.png';
 
 function RegisterPage() {
   const [formData, setFormData] = useState({

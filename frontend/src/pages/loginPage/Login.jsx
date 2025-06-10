@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import styles from '../../styles/LoginPage.module.scss';
 import Navbar from '../../components/Navbar';
-import verificationImage from '../../assets/verification-image.jpg';
+import verificationImage from '../../assets/login.png';
 
 function LoginPage() {
   const [formData, setFormData] = useState({
