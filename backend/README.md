@@ -6,6 +6,7 @@ A Node.js/Express backend API for user authentication and management in the Veri
 
 - **User Authentication**: Registration and login with JWT tokens
 - **Password Security**: Bcrypt hashing for secure password storage
+- **Third-Party Verification**: Request ID system for external app verification
 - **MongoDB Integration**: User data storage with Mongoose ODM
 - **CORS Support**: Cross-origin requests enabled for frontend
 - **Environment Configuration**: Secure environment variable management
@@ -238,6 +239,69 @@ Content-Type: application/json
   "isVerified": true
 }
 ```
+
+### Third-Party Verification Endpoints
+
+#### Generate Request ID (Protected)
+```http
+POST /api/verification/generate-request-id
+Authorization: Bearer jwt_token_here
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Request ID generated successfully",
+  "requestId": "req_lm2n3o4p_abc123def456",
+  "user": {
+    "id": "user_id",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "isVerified": true
+  }
+}
+```
+
+#### Verify User by Request ID (Public)
+```http
+GET /api/verification/verify/{requestId}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User verification status retrieved successfully",
+  "verified": true,
+  "requestId": "req_lm2n3o4p_abc123def456",
+  "user": {
+    "id": "user_id",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "idCardNumber": "12345678901",
+    "isVerified": true,
+    "verifiedAt": "2024-01-15T10:30:00.000Z"
+  },
+  "timestamp": "2024-01-15T14:25:30.123Z"
+}
+```
+
+#### Get My Request ID (Protected)
+```http
+GET /api/verification/my-request-id
+Authorization: Bearer jwt_token_here
+```
+
+#### Revoke Request ID (Protected)
+```http
+DELETE /api/verification/revoke-request-id
+Authorization: Bearer jwt_token_here
+```
+
+> 📖 **For detailed third-party verification API documentation, see [VERIFICATION_API.md](./VERIFICATION_API.md)**
 
 ## ⚙️ Configuration
 

@@ -52,6 +52,7 @@ export const registerUser = async (req, res) => {
         birthDate: user.birthDate,
         gender: user.gender,
         isVerified: user.isVerified,
+        requestId: user.requestId,
         token: generateToken(user._id)
       });
     } else {
@@ -113,6 +114,7 @@ export const loginUser = async (req, res) => {
         birthDate: user.birthDate,
         gender: user.gender,
         isVerified: user.isVerified,
+        requestId: user.requestId,
         token: generateToken(user._id)
       });
     } else {
@@ -165,6 +167,7 @@ export const updateUserProfile = async (req, res) => {
         birthDate: updatedUser.birthDate,
         gender: updatedUser.gender,
         isVerified: updatedUser.isVerified,
+        requestId: updatedUser.requestId,
         idCardFace: updatedUser.idCardFace,
         token: req.token || generateToken(updatedUser._id)
       });

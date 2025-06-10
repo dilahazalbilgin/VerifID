@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
+import verificationRoutes from './routes/verificationRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -27,6 +28,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/users', userRoutes);
+app.use('/api/verification', verificationRoutes);
 
 app.get('/', (req, res) => {
   res.send('VerifID API is running');

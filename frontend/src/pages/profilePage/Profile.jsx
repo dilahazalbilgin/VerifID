@@ -148,13 +148,35 @@ function ProfilePage() {
               {user.isVerified ? 'Verified' : 'Not Verified'}
             </span>
             {!user.isVerified && (
-              <button 
+              <button
                 onClick={() => navigate('/verify')}
                 className={styles.verifyButton}
               >
                 Verify
               </button>
             )}
+          </div>
+
+          {/* Request ID Section */}
+          <div className={styles.requestIdSection}>
+            <h3>Request ID</h3>
+            <p className={styles.requestIdDescription}>
+              Use this ID to verify your identity with third-party applications
+            </p>
+            <div className={styles.requestIdContainer}>
+              <code className={styles.requestIdCode}>
+                {user.requestId || 'No Request ID available'}
+              </code>
+              {user.requestId && (
+                <button
+                  onClick={() => navigator.clipboard.writeText(user.requestId)}
+                  className={styles.copyButton}
+                  title="Copy to clipboard"
+                >
+                  Copy
+                </button>
+              )}
+            </div>
           </div>
         </div>
         

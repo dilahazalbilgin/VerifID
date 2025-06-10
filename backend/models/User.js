@@ -44,6 +44,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  requestId: {
+    type: String,
+    unique: true,
+    sparse: true,  // Allows null values while maintaining uniqueness for non-null values
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -54,20 +60,32 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Hash password before saving
+// Hash password and generate request ID before saving
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
+  // Hash password if it's modified
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
   }
-  
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+
+  // Generate request ID for new users (only on creation, not updates)
+  if (this.isNew && !this.requestId) {
+    this.requestId = this.generateRequestId();
+  }
+
   next();
 });
 
 // Method to check password
 userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Method to generate unique request ID
+userSchema.methods.generateRequestId = function() {
+  const timestamp = Date.now().toString(36);
+  const randomStr = Math.random().toString(36).substring(2, 15);
+  return `req_${timestamp}_${randomStr}`;
 };
 
 const User = mongoose.model('User', userSchema);

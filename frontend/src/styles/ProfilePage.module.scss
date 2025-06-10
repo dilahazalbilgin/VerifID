@@ -263,3 +263,68 @@
   font-size: 0.9rem;
 }
 
+.requestIdSection {
+  background-color: #111;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+
+  h3 {
+    font-size: 1.2rem;
+    color: #CAFF33;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.requestIdDescription {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1rem;
+}
+
+.requestIdContainer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+
+  @media (max-width: 576px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+}
+
+.requestIdCode {
+  flex: 1;
+  background-color: #222;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 0.8rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  color: #CAFF33;
+  word-break: break-all;
+  user-select: all;
+}
+
+.copyButton {
+  padding: 0.8rem 1.5rem;
+  background-color: #CAFF33;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: #9CC026;
+  }
+
+  @media (max-width: 576px) {
+    width: 100%;
+  }
+}
+

@@ -50,6 +50,7 @@ export function AuthProvider({ children }) {
         serialNumber: data.serialNumber || '',
         gender: data.gender || '',
         isVerified: data.isVerified,
+        requestId: data.requestId,
         token: data.token
       };
       
@@ -102,6 +103,72 @@ export function AuthProvider({ children }) {
     return user && user.isVerified;
   };
 
+  const generateRequestId = async () => {
+    setError(null);
+    try {
+      const response = await fetch('http://localhost:5000/api/verification/generate-request-id', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate request ID');
+      }
+
+      // Update user with new request ID
+      const updatedUser = {
+        ...user,
+        requestId: data.requestId
+      };
+
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      return data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  const revokeRequestId = async () => {
+    setError(null);
+    try {
+      const response = await fetch('http://localhost:5000/api/verification/revoke-request-id', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to revoke request ID');
+      }
+
+      // Update user to remove request ID
+      const updatedUser = {
+        ...user,
+        requestId: null
+      };
+
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      return data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
   const updateProfile = async (userData) => {
     setError(null);
     try {
@@ -138,6 +205,7 @@ export function AuthProvider({ children }) {
         serialNumber: data.serialNumber || user.serialNumber,
         gender: data.gender || user.gender,
         isVerified: data.isVerified !== undefined ? data.isVerified : user.isVerified,
+        requestId: data.requestId || user.requestId,
         token: data.token || user.token
       };
       
@@ -154,14 +222,16 @@ export function AuthProvider({ children }) {
 
   // Create the context value object
   const contextValue = {
-    user, 
-    login, 
-    logout, 
+    user,
+    login,
+    logout,
     register,
     updateProfile,
-    loading, 
+    generateRequestId,
+    revokeRequestId,
+    loading,
     isVerified,
-    error 
+    error
   };
 
   return (
