@@ -9,7 +9,7 @@ Werkzeug==2.3.7
 python-dotenv==1.0.0
 
 # Image processing and computer vision
-Pillow==10.0.0
+Pillow==11.2.1
 opencv-python==4.8.0.74
 numpy==1.24.3
 

@@ -22,6 +22,7 @@ def base64_to_image(base64_string):
         return None
 
 def get_reference_face_encoding(user_id, face_info_dir='./face_info'):
+<<<<<<< HEAD
     """
     Loads a reference image for a given user_id and returns the face encoding.
     [VERSION WITH ENHANCED LOGGING]
@@ -31,14 +32,19 @@ def get_reference_face_encoding(user_id, face_info_dir='./face_info'):
 
     if not os.path.exists(face_path):
         print(f"[ERROR] File does not exist at path: {face_path}")
+=======
+    """Loads a reference image for a given user_id and returns the face encoding."""
+    face_path = os.path.join(face_info_dir, f"{user_id}.jpg")
+    if not os.path.exists(face_path):
+>>>>>>> 00f4710 (Yerel değişiklikler (dosya silme ve güncellemeler))
         return None
-
     try:
         print(f"[DEBUG] File found. Loading image with face_recognition...")
         reference_image = face_recognition.load_image_file(face_path)
         print(f"[DEBUG] Image loaded successfully. Now encoding face...")
         
         reference_encodings = face_recognition.face_encodings(reference_image)
+<<<<<<< HEAD
 
         if not reference_encodings:
             print(f"[ERROR] Image at {face_path} was loaded, but NO FACE was detected in it.")
@@ -49,6 +55,10 @@ def get_reference_face_encoding(user_id, face_info_dir='./face_info'):
 
     except Exception as e:
         print(f"[CRITICAL ERROR] An exception occurred while processing {face_path}: {e}")
+=======
+        return reference_encodings[0] if reference_encodings else None
+    except Exception:
+>>>>>>> 00f4710 (Yerel değişiklikler (dosya silme ve güncellemeler))
         return None
 
 # --- Functions Required by app.py ---
@@ -108,3 +118,17 @@ def verify_face_match(frame, reference_encoding, tolerance=0.55):
     message = "Success" if match else f"Face does not match (confidence: {confidence:.2f})"
     return match, confidence, message
 
+<<<<<<< HEAD
+=======
+# --- Optional Security Functions (You can add these back if needed) ---
+# For now, these are stubbed so your app doesn't crash.
+# You can implement their real logic from your old liveness_detection.py if desired.
+
+def detect_face_blur(frame, face_location):
+    """Stub function. Returns True to not interfere with the flow."""
+    return True, 100 # is_clear, blur_score
+
+def validate_face_consistency(current_face_size, reference_face_size):
+    """Stub function. Returns True to not interfere with the flow."""
+    return True, 0 # is_consistent, size_difference
+>>>>>>> 00f4710 (Yerel değişiklikler (dosya silme ve güncellemeler))
